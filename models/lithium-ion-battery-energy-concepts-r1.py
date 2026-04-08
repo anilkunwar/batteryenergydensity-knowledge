@@ -1,21 +1,19 @@
 import streamlit as st
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import TensorDataset, DataLoader
 import dgl
 import networkx as nx
 import numpy as np
 import pandas as pd
 import re
 import json
-import math
 import os
 import tempfile
 import warnings
 from collections import defaultdict
 from sklearn.linear_model import Ridge
-from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from pyvis.network import Network
@@ -41,8 +39,7 @@ GNN_HIDDEN_DIM = 128
 GNN_LAYERS = 2
 TRAIN_EPOCHS = 50
 LR = 1e-3
-NEG_DPREV_FOCUS = 3  # Hard negative sampling target
-MIXTURE_ALPHA_INIT = 0.5
+NEG_DPREV_FOCUS = 3
 
 # ==========================================
 # MODEL LOADING (CACHED FOR STREAMLIT)
@@ -182,9 +179,9 @@ def sample_edges_for_training(nx_graph, d_prev_dict, valid_concepts, concept_to_
     
     # Hard negative sampling: focus on d_prev == 3
     attempts = 0
-    target_negs = min(len(pos_pairs) * 2, 2000)  # Cap negatives for speed
+    target_negs = min(len(pos_pairs) * 2, 2000)
     
-    while len(neg_pairs) < target_negs and attempts < 10000:
+    while len(neg_pairs) < target_negs and attempts < 15000:
         u_idx = np.random.randint(n_nodes)
         v_idx = np.random.randint(n_nodes)
         if u_idx == v_idx:
@@ -204,7 +201,7 @@ def sample_edges_for_training(nx_graph, d_prev_dict, valid_concepts, concept_to_
             
         if dist == NEG_DPREV_FOCUS:
             neg_pairs.append((u_idx, v_idx))
-        elif dist == 2 and np.random.rand() < 0.3:  # Some d_prev=2 for balance
+        elif dist == 2 and np.random.rand() < 0.3:
             neg_pairs.append((u_idx, v_idx))
         attempts += 1
         
@@ -215,10 +212,7 @@ def sample_edges_for_training(nx_graph, d_prev_dict, valid_concepts, concept_to_
             if (u_idx, v_idx) not in neg_pairs and (v_idx, u_idx) not in neg_pairs:
                 neg_pairs.append((u_idx, v_idx))
                 
-    pos_labels = np.ones(len(pos_pairs), dtype=np.float32)
-    neg_labels = np.zeros(len(neg_pairs), dtype=np.float32)
-    
-    return pos_pairs, neg_pairs, np.concatenate([pos_labels, neg_labels])
+    return pos_pairs, neg_pairs
 
 # ==========================================
 # STEP 4: SEMANTIC NODE EMBEDDINGS
@@ -234,8 +228,8 @@ def generate_embeddings(valid_concepts, embed_model):
 class GraphSAGELinkPredictor(nn.Module):
     def __init__(self, in_dim, hidden_dim):
         super().__init__()
-        self.conv1 = dgl.nn.SAGEConv(in_dim, hidden_dim, aggregator_type='mean')
-        self.conv2 = dgl.nn.SAGEConv(hidden_dim, hidden_dim, aggregator_type='mean')
+        self.conv1 = dgl.nn.SAGEConv(in_dim, hidden_dim, aggregator_type='mean', allow_zero_in_degree=True)
+        self.conv2 = dgl.nn.SAGEConv(hidden_dim, hidden_dim, aggregator_type='mean', allow_zero_in_degree=True)
         self.decoder = nn.Sequential(
             nn.Linear(hidden_dim * 2, hidden_dim),
             nn.ReLU(),
@@ -308,10 +302,9 @@ def compute_quantification_layer(valid_concepts, concept_abstract_map, all_energ
     X_feat, y_target = [], []
     for u, v in nx_graph.edges():
         pu, pv = concept_energies.get(u, 0), concept_energies.get(v, 0)
-        # Use edge weight as proxy for historical synergy
         w = nx_graph[u][v]['weight']
         X_feat.append([pu, pv, w])
-        y_target.append(max(pu, pv) * 1.05)  # Simple target assumption
+        y_target.append(max(pu, pv) * 1.05)
         
     if len(X_feat) > 5:
         X = np.array(X_feat)
@@ -322,88 +315,79 @@ def compute_quantification_layer(valid_concepts, concept_abstract_map, all_energ
         
     return concept_energies, ridge
 
-def compute_research_direction_scores(model, final_emb, nx_graph, concept_to_id, valid_concepts, concept_energies, ridge, embed_model, d_prev_dict, pos_pairs):
-    """Computes D_uv score for all unlinked pairs."""
+def compute_research_direction_scores(model, final_emb, nx_graph, concept_to_id, valid_concepts, concept_energies, ridge, embed_model, d_prev_dict):
+    """Computes D_uv score for unlinked pairs."""
     scores = []
     
-    # Convert concept pairs to IDs for lookup
-    concept_pairs = list(nx_graph.edges())
-    positive_set = set((min(u,v), max(v,u)) for u,v in concept_pairs)
+    # Sample candidate pairs efficiently
+    n_samples = min(3000, len(valid_concepts) * 5)
+    u_ids = np.random.randint(len(valid_concepts), size=n_samples)
+    v_ids = np.random.randint(len(valid_concepts), size=n_samples)
     
+    filtered_pairs = []
+    for u_idx, v_idx in zip(u_ids, v_ids):
+        if u_idx == v_idx: continue
+        u_c, v_c = valid_concepts[u_idx], valid_concepts[v_idx]
+        if nx_graph.has_edge(u_c, v_c): continue
+        filtered_pairs.append((u_idx, v_idx, u_c, v_c))
+        
+    if not filtered_pairs:
+        return pd.DataFrame()
+        
+    u_idx_tensor = torch.tensor([p[0] for p in filtered_pairs], dtype=torch.long, device=DEVICE)
+    v_idx_tensor = torch.tensor([p[1] for p in filtered_pairs], dtype=torch.long, device=DEVICE)
+    
+    # GNN scores
     model.eval()
     with torch.no_grad():
-        # Prepare decoder inputs for all pairs
-        all_ids = list(range(len(valid_concepts)))
-        
-        # Sample candidate pairs efficiently
-        n_samples = min(5000, len(valid_concepts) * 5)
-        u_ids = np.random.randint(len(valid_concepts), size=n_samples)
-        v_ids = np.random.randint(len(valid_concepts), size=n_samples)
-        
-        filtered_pairs = []
-        for u_idx, v_idx in zip(u_ids, v_ids):
-            if u_idx == v_idx: continue
-            u_c, v_c = valid_concepts[u_idx], valid_concepts[v_idx]
-            if nx_graph.has_edge(u_c, v_c): continue
-            filtered_pairs.append((u_idx, v_idx, u_c, v_c))
-            
-        if not filtered_pairs:
-            return []
-            
-        u_idx_tensor = torch.tensor([p[0] for p in filtered_pairs], dtype=torch.long, device=DEVICE)
-        v_idx_tensor = torch.tensor([p[1] for p in filtered_pairs], dtype=torch.long, device=DEVICE)
-        
-        # GNN scores
         h_u = final_emb[u_idx_tensor].to(DEVICE)
         h_v = final_emb[v_idx_tensor].to(DEVICE)
         pair_cat = torch.cat([h_u, h_v], dim=1)
         gnn_logits = model.decoder(pair_cat).squeeze(1)
         gnn_scores = torch.sigmoid(gnn_logits).cpu().numpy()
         
-        # Semantic novelty
-        emb_np = embed_model.encode(valid_concepts, show_progress_bar=False)
-        cos_sims = np.sum(emb_np[u_idx_tensor.numpy()] * emb_np[v_idx_tensor.numpy()], axis=1)
+    # Semantic novelty
+    emb_np = embed_model.encode(valid_concepts, show_progress_bar=False)
+    cos_sims = np.sum(emb_np[u_idx_tensor.cpu().numpy()] * emb_np[v_idx_tensor.cpu().numpy()], axis=1)
+    
+    # Compute scores
+    for i, (u_idx, v_idx, u_c, v_c) in enumerate(filtered_pairs):
+        try:
+            d_prev = d_prev_dict[u_c][v_c]
+        except:
+            d_prev = 4
+            
+        if d_prev < 2: continue
         
-        # Quantification & Feasibility
-        for i, (u_idx, v_idx, u_c, v_c) in enumerate(filtered_pairs):
-            try:
-                d_prev = d_prev_dict[u_c][v_c]
-            except:
-                d_prev = 4
-                
-            if d_prev < 2: continue
+        p_u = concept_energies.get(u_c, 0)
+        p_v = concept_energies.get(v_c, 0)
+        w_hist = 1.0
+        
+        expected_gain = 0
+        if ridge is not None:
+            expected_gain = float(ridge.predict([[p_u, p_v, w_hist]])[0])
             
-            p_u = concept_energies.get(u_c, 0)
-            p_v = concept_energies.get(v_c, 0)
-            w_hist = 1.0
-            
-            expected_gain = 0
-            if ridge is not None:
-                expected_gain = ridge.predict([[p_u, p_v, w_hist]])[0]
-                
-            semantic_novelty = 1.0 - cos_sims[i]
-            feasibility = np.exp(-0.5 * semantic_novelty) * (1.0 if (p_u > 0 or p_v > 0) else 0.5)
-            
-            # D_uv formula
-            alpha1, alpha2, alpha3, alpha4 = 0.4, 0.3, 0.2, 0.1
-            norm_gain = (expected_gain - 200) / 150  # Rough normalization to ~[0,1]
-            norm_gain = max(0, min(1, norm_gain))
-            
-            D_uv = (alpha1 * gnn_scores[i] + 
-                    alpha2 * semantic_novelty + 
-                    alpha3 * norm_gain - 
-                    alpha4 * (1.0 - feasibility))
-            
-            scores.append({
-                'concept_u': u_c, 'concept_v': v_c,
-                'd_prev': d_prev,
-                'gnn_score': gnn_scores[i],
-                'expected_wh_kg': expected_gain,
-                'feasibility': feasibility,
-                'D_uv': D_uv
-            })
-            
-    # Sort and return top
+        semantic_novelty = 1.0 - cos_sims[i]
+        feasibility = np.exp(-0.5 * semantic_novelty) * (1.0 if (p_u > 0 or p_v > 0) else 0.5)
+        
+        alpha1, alpha2, alpha3, alpha4 = 0.4, 0.3, 0.2, 0.1
+        norm_gain = (expected_gain - 200) / 150
+        norm_gain = max(0, min(1, norm_gain))
+        
+        D_uv = (alpha1 * gnn_scores[i] + 
+                alpha2 * semantic_novelty + 
+                alpha3 * norm_gain - 
+                alpha4 * (1.0 - feasibility))
+        
+        scores.append({
+            'concept_u': u_c, 'concept_v': v_c,
+            'd_prev': d_prev,
+            'gnn_score': float(gnn_scores[i]),
+            'expected_wh_kg': expected_gain,
+            'feasibility': float(feasibility),
+            'D_uv': float(D_uv)
+        })
+        
     scores_df = pd.DataFrame(scores).sort_values('D_uv', ascending=False)
     return scores_df.head(50)
 
@@ -413,9 +397,10 @@ def compute_research_direction_scores(model, final_emb, nx_graph, concept_to_id,
 def generate_research_directions(top_pairs_df, tokenizer, model):
     """Generates curated research directions using lightweight LLM."""
     results = []
+    # FIXED: Proper format specifiers in template string
     prompt_template = """You are a materials science research strategist. 
 For the novel concept combination: "{u}" + "{v}"
-Historical expected energy density: ~{wh} Wh/kg
+Historical expected energy density: ~{wh:.1f} Wh/kg
 Semantic feasibility: {feas:.2f}/1.0
 Write exactly 3 sentences:
 1. Why this combination is scientifically novel and underexplored.
@@ -425,8 +410,10 @@ Be concise and technically precise."""
 
     for _, row in top_pairs_df.iterrows():
         prompt = prompt_template.format(
-            u=row['concept_u'], v=row['concept_v'],
-            wh=row['expected_wh_kg']:.1f, feas=row['feasibility']
+            u=row['concept_u'], 
+            v=row['concept_v'],
+            wh=float(row['expected_wh_kg']), 
+            feas=float(row['feasibility'])
         )
         inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=256).to(DEVICE)
         with torch.no_grad():
@@ -451,11 +438,10 @@ def main():
     
     with st.sidebar:
         st.header("Configuration")
-        min_freq = st.slider("Min Concept Frequency", 2, 10, 3)
-        st.info("Lower the threshold if your dataset is small (<500 abstracts).")
+        min_freq = st.slider("Min Concept Frequency", 2, 10, 3, help="Lower for smaller datasets")
         
     abstract_input = st.text_area("Paste scientific abstracts (one per line, or separated by blank lines):", height=200, 
-                                  placeholder="Enter 5-50 recent battery materials abstracts...")
+                                  placeholder="Enter 10-50 recent battery materials abstracts...")
     
     if st.button("🚀 Run Prediction Pipeline", type="primary"):
         if not abstract_input.strip():
@@ -492,7 +478,7 @@ def main():
             # Step 3: Graph
             with st.status("Building concept graph & computing distances..."):
                 nx_graph, d_prev_dict = build_concept_graph(all_concepts, concept_to_id)
-                pos_pairs, neg_pairs, labels = sample_edges_for_training(nx_graph, d_prev_dict, valid_concepts, concept_to_id)
+                pos_pairs, neg_pairs = sample_edges_for_training(nx_graph, d_prev_dict, valid_concepts, concept_to_id)
                 st.write(f"✅ Graph: {len(valid_concepts)} nodes, {nx_graph.number_of_edges()} edges.")
                 st.write(f"✅ Training pairs: {len(pos_pairs)} pos, {len(neg_pairs)} neg.")
             progress.progress(40)
@@ -504,9 +490,8 @@ def main():
             
             # Step 5: GNN
             with st.status("Training GraphSAGE link predictor..."):
-                src, dst = zip(*pos_pairs + neg_pairs)
-                src = torch.tensor([concept_to_id[valid_concepts[u]] for u in src], dtype=torch.long)
-                dst = torch.tensor([concept_to_id[valid_concepts[v]] for v in dst], dtype=torch.long)
+                src = torch.tensor([p[0] for p in pos_pairs + neg_pairs], dtype=torch.long)
+                dst = torch.tensor([p[1] for p in pos_pairs + neg_pairs], dtype=torch.long)
                 g_dgl = dgl.graph((src, dst), num_nodes=len(valid_concepts))
                 g_dgl = dgl.add_reverse_edges(g_dgl)
                 
@@ -517,7 +502,7 @@ def main():
             # Step 6: Quantification
             with st.status("Computing energy density proxies & feasibility..."):
                 concept_energies, ridge = compute_quantification_layer(valid_concepts, concept_abstract_map, all_energies, nx_graph)
-                top_scores = compute_research_direction_scores(gnn_model, final_emb, nx_graph, concept_to_id, valid_concepts, concept_energies, ridge, embed_model, d_prev_dict, pos_pairs)
+                top_scores = compute_research_direction_scores(gnn_model, final_emb, nx_graph, concept_to_id, valid_concepts, concept_energies, ridge, embed_model, d_prev_dict)
             progress.progress(80)
             
             # Step 7: Curation
