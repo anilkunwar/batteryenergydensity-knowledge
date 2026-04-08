@@ -9,8 +9,10 @@ cupy-cuda12x  # For CUDA 11.x pip install cupy-cuda11x
 imageio
 imageio-ffmpeg
 seaborn
-torch
-torchdata  #this module is needed
+torch>=2.2.0
+torchdata>=0.7.0 #this module is needed
+#torch
+#torchdata  #this module is needed
 h5py
 msgpack
 dill
