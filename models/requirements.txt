@@ -10,7 +10,7 @@ imageio
 imageio-ffmpeg
 seaborn
 torch>=2.2.0
-torchdata>=0.7.0 #this module is needed
+torchdata>=0.11.0 #this module is needed
 #torch
 #torchdata  #this module is needed
 h5py
