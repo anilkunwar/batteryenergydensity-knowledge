@@ -2,6 +2,7 @@
 torch>=2.2.0,<2.5.0
 torchdata>=0.7.0
 dgl>=2.1.0
+torchvision
 
 # NLP & Embeddings
 sentence-transformers>=2.2.0
