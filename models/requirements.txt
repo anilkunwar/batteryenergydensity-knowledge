@@ -29,5 +29,5 @@ opencv-python-headless
 pillow
 numpy
 pytesseract
-dgl
+dgl>=2.1.0
 pyvis
