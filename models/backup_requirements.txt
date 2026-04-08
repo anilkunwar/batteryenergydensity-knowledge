@@ -1,0 +1,16 @@
+streamlit
+matplotlib
+scipy
+plotly
+seaborn
+torch>=2.2.0
+sentence-transformers
+transformers
+accelerate
+scikit-learn
+pandas
+numpy
+networkx
+pyvis
+h5py
+joblib
