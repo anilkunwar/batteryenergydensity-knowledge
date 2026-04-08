@@ -1,3 +1,22 @@
+import sys
+import subprocess
+import importlib
+
+# ---------- AUTO-INSTALL MISSING DEPENDENCIES ----------
+def ensure_package(package_name: str, pip_name: str = None):
+    """Check if a package is available; if not, install it via pip."""
+    try:
+        importlib.import_module(package_name)
+    except ImportError:
+        pip_pkg = pip_name if pip_name else package_name
+        print(f"⚠️ {package_name} not found. Installing {pip_pkg}...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", pip_pkg])
+        print(f"✅ {package_name} installed successfully.")
+
+# DGL's graphbolt module requires torchdata.datapipes
+ensure_package("torchdata", "torchdata>=0.7.0")
+
+# Now safe to import DGL and other libraries
 import streamlit as st
 import torch
 import torch.nn as nn
@@ -397,7 +416,6 @@ def compute_research_direction_scores(model, final_emb, nx_graph, concept_to_id,
 def generate_research_directions(top_pairs_df, tokenizer, model):
     """Generates curated research directions using lightweight LLM."""
     results = []
-    # FIXED: Proper format specifiers in template string
     prompt_template = """You are a materials science research strategist. 
 For the novel concept combination: "{u}" + "{v}"
 Historical expected energy density: ~{wh:.1f} Wh/kg
