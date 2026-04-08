@@ -10,7 +10,7 @@ imageio
 imageio-ffmpeg
 seaborn
 torch
-torchdata 
+torchdata  #this module is needed
 h5py
 msgpack
 dill
@@ -30,5 +30,5 @@ opencv-python-headless
 pillow
 numpy
 pytesseract
-dgl>=2.1.0
+dgl>=2.1.0 # requires python 3.10 
 pyvis
