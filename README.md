@@ -1,1 +1,7 @@
 # batteryenergydensity-knowledge
+
+[![integratedllmgraphbattery](https://img.shields.io/badge/batterygraphllm1-streamlit-red)](https://concepts-in-energy-density-of-batteries1.streamlit.app/) (LLM+pure pytorch SparseGraphSAGE, no DGL)
+
+[![integratedllmgraphbattery](https://img.shields.io/badge/batterygraphllm2-streamlit-red)](https://concepts-in-energy-density-of-batteries2.streamlit.app/) (LLM+pure pytorch SparseGraphSAGE, no DGL)
+
+[![integratedllmgraphbattery](https://img.shields.io/badge/batterygraphllm3-streamlit-red)](https://concepts-in-energy-density-of-batteries3.streamlit.app/) (LLM+DGL, unresolved errors)
