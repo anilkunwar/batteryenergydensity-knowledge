@@ -2,7 +2,7 @@
 torch>=2.2.0,<2.5.0
 torchdata>=0.7.0
 #torchdata==0.6.1
-dgl>=2.1.0
+dgl>=2.2.1
 torchvision
 
 # NLP & Embeddings
