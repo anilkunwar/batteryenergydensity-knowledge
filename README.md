@@ -1,4 +1,4 @@
-# batteryenergydensity-knowledge
+# BatteryEnergyDensity-Knowledge with Lightweight LLMs (< 1B parameters) and Concept Graph
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/batterygraphllm1-streamlit-red)](https://concepts-in-energy-density-of-batteries1.streamlit.app/) (LLM+pure pytorch SparseGraphSAGE, no DGL)
 
