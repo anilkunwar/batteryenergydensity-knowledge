@@ -1,82 +1,45 @@
 import sys
 import subprocess
 import importlib
+import os
 import warnings
 
 # ==========================================
-# ROBUST DEPENDENCY INSTALLATION & PATCHING
+# ROBUST DEPENDENCY HANDLING (CLOUD-OPTIMIZED)
 # ==========================================
 def ensure_package(package_name: str, pip_name: str = None, min_version: str = None):
-    """Check if a package is available with optional version check; install if missing."""
+    """Install package if missing or below min_version."""
     try:
         module = importlib.import_module(package_name)
         if min_version:
-            # Simple version check via __version__
             pkg_version = getattr(module, '__version__', '0.0.0')
             if pkg_version < min_version:
                 raise ImportError(f"Version {pkg_version} < {min_version}")
         return True
     except ImportError:
         pip_pkg = pip_name if pip_name else package_name
-        print(f"⚠️ {package_name} not found or version too old. Installing {pip_pkg}...")
-        try:
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", "--quiet", pip_pkg],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-            # Force reimport
-            importlib.invalidate_caches()
-            importlib.import_module(package_name)
-            print(f"✅ {package_name} installed successfully.")
-            return True
-        except Exception as e:
-            print(f"❌ Failed to install {pip_pkg}: {e}")
-            return False
-
-# Patch torchdata.datapipes BEFORE importing DGL
-def patch_torchdata_datapipes():
-    """Monkey-patch torchdata.datapipes.iter if missing to prevent DGL crash."""
-    try:
-        from torchdata.datapipes.iter import IterDataPipe
-        return True
-    except (ImportError, ModuleNotFoundError):
-        print("⚠️ torchdata.datapipes.iter missing. Applying compatibility patch...")
-        # Create a minimal mock module
-        import types
-        datapipes_module = types.ModuleType('torchdata.datapipes')
-        iter_module = types.ModuleType('torchdata.datapipes.iter')
-        
-        # Mock IterDataPipe as a no-op base class
-        class MockIterDataPipe:
-            def __init__(self, *args, **kwargs):
-                pass
-            def __iter__(self):
-                return iter([])
-        
-        iter_module.IterDataPipe = MockIterDataPipe
-        datapipes_module.iter = iter_module
-        
-        # Inject into sys.modules
-        sys.modules['torchdata.datapipes'] = datapipes_module
-        sys.modules['torchdata.datapipes.iter'] = iter_module
-        print("✅ TorchData patch applied. DGL should now import successfully.")
+        print(f"⚠️ Installing {pip_pkg}...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", pip_pkg])
+        importlib.invalidate_caches()
+        print(f"✅ {package_name} installed.")
         return True
 
-# Install critical dependencies in order
-print("🔧 Checking dependencies...")
+# Critical: Force PyTorch backend BEFORE importing DGL
+os.environ["DGLBACKEND"] = "pytorch"
+
+# Install core dependencies with version constraints
 ensure_package("torch", min_version="2.2.0")
-ensure_package("torchdata", pip_name="torchdata>=0.7.0")
-patch_torchdata_datapipes()  # MUST run before DGL import
-ensure_package("dgl", pip_name="dgl>=2.1.0")
+ensure_package("dgl", pip_name="dgl==2.2.1")          # GraphBolt version – NO torchdata
 ensure_package("sentence_transformers", pip_name="sentence-transformers>=2.2.0")
 ensure_package("transformers", min_version="4.35.0")
 ensure_package("networkx", min_version="3.0")
 ensure_package("pyvis", min_version="0.3.0")
 ensure_package("sklearn", pip_name="scikit-learn>=1.3.0")
-print("✅ All dependencies ready.")
+ensure_package("streamlit", min_version="1.28.0")
 
-# Now safe to import all libraries
+warnings.filterwarnings('ignore')
+
+# Now safe imports
 import streamlit as st
 import torch
 import torch.nn as nn
@@ -88,15 +51,12 @@ import numpy as np
 import pandas as pd
 import re
 import json
-import os
 import tempfile
 from collections import defaultdict
 from sklearn.linear_model import Ridge
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from pyvis.network import Network
-
-warnings.filterwarnings('ignore')
 
 # ==========================================
 # CONFIGURATION & DEVICE SETUP
@@ -114,7 +74,6 @@ EMBED_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 MIN_CONCEPT_FREQ = 3
 MIN_CONCEPT_LENGTH_WORDS = 2
 GNN_HIDDEN_DIM = 128
-GNN_LAYERS = 2
 TRAIN_EPOCHS = 50
 LR = 1e-3
 NEG_DPREV_FOCUS = 3
@@ -142,7 +101,6 @@ def load_lightweight_llm():
 # STEP 1-2: CONCEPT EXTRACTION & NORMALIZATION
 # ==========================================
 def extract_concepts_from_abstracts(abstracts, tokenizer, model):
-    """Extracts and normalizes concepts using lightweight LLM + regex fallback."""
     prompt_template = """Extract exactly the core scientific concepts (2+ words) from this abstract. 
 Rules: 
 - Output ONLY a JSON list of strings.
@@ -157,7 +115,7 @@ Concepts:"""
     all_concepts = []
     all_energy_values = []
     
-    for i, text in enumerate(abstracts):
+    for text in abstracts:
         # Energy density extraction (Wh/kg)
         matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:Wh/kg|W h kg⁻¹|Wh kg-1)', text, re.IGNORECASE)
         energies = [float(m) for m in matches]
@@ -178,14 +136,12 @@ Concepts:"""
         
         response = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True).strip()
         
-        # Parse JSON safely
         concepts = []
         try:
             parsed = json.loads(response.replace("'", '"').strip())
             if isinstance(parsed, list):
                 concepts = [c.strip().lower().rstrip('.') for c in parsed if isinstance(c, str)]
         except:
-            # Fallback: regex noun phrases
             fallback = re.findall(r'\b(?:[A-Za-z]+[\s-]*){2,4}\b', text)
             concepts = [c.lower() for c in fallback if len(c.split()) >= 2 and len(c) > 5]
             
@@ -194,7 +150,6 @@ Concepts:"""
     return all_concepts, all_energy_values
 
 def normalize_and_filter_concepts(all_concepts):
-    """Filters concepts by frequency and length, maps to unique IDs."""
     concept_counts = defaultdict(int)
     concept_abstract_map = defaultdict(list)
     
@@ -206,11 +161,9 @@ def normalize_and_filter_concepts(all_concepts):
                 concept_abstract_map[c].append(doc_idx)
                 seen_in_doc.add(c)
                 
-    # Filter by MIN_CONCEPT_FREQ and MIN_CONCEPT_LENGTH_WORDS
     valid_concepts = [c for c, cnt in concept_counts.items() 
                       if cnt >= MIN_CONCEPT_FREQ and len(c.split()) >= MIN_CONCEPT_LENGTH_WORDS]
     
-    # Map to integer IDs
     concept_to_id = {c: i for i, c in enumerate(valid_concepts)}
     id_to_concept = {i: c for i, c in enumerate(valid_concepts)}
     
@@ -220,14 +173,11 @@ def normalize_and_filter_concepts(all_concepts):
 # STEP 3: TEMPORAL CONCEPT GRAPH & DISTANCE
 # ==========================================
 def build_concept_graph(all_concepts, concept_to_id):
-    """Builds co-occurrence graph and computes d_prev distances."""
     nx_graph = nx.Graph()
     
-    # Add nodes
     for c in concept_to_id:
         nx_graph.add_node(c)
         
-    # Add edges from co-occurrence
     for concepts in all_concepts:
         valid_in_doc = [c for c in concepts if c in concept_to_id]
         for i in range(len(valid_in_doc)):
@@ -238,24 +188,17 @@ def build_concept_graph(all_concepts, concept_to_id):
                 else:
                     nx_graph.add_edge(u, v, weight=1)
                     
-    # Filter nodes by degree
     valid_nodes = [n for n, d in nx_graph.degree() if d >= MIN_CONCEPT_FREQ]
     graph_filtered = nx_graph.subgraph(valid_nodes).copy()
-    
-    # Precompute shortest paths for d_prev (expensive but necessary)
     d_prev_dict = dict(nx.all_pairs_shortest_path_length(graph_filtered, cutoff=4))
     
     return graph_filtered, d_prev_dict
 
 def sample_edges_for_training(nx_graph, d_prev_dict, valid_concepts, concept_to_id):
-    """Samples positive (existing) and hard negative (d_prev=3) edges."""
     pos_pairs = list(nx_graph.edges())
     neg_pairs = []
     
-    valid_ids = [concept_to_id[c] for c in valid_concepts]
-    n_nodes = len(valid_ids)
-    
-    # Hard negative sampling: focus on d_prev == 3
+    n_nodes = len(valid_concepts)
     attempts = 0
     target_negs = min(len(pos_pairs) * 2, 2000)
     
@@ -271,7 +214,6 @@ def sample_edges_for_training(nx_graph, d_prev_dict, valid_concepts, concept_to_
         if nx_graph.has_edge(u_concept, v_concept):
             continue
             
-        # Compute d_prev
         try:
             dist = d_prev_dict[u_concept][v_concept]
         except:
@@ -283,7 +225,6 @@ def sample_edges_for_training(nx_graph, d_prev_dict, valid_concepts, concept_to_
             neg_pairs.append((u_idx, v_idx))
         attempts += 1
         
-    # If hard negatives insufficient, fill with random non-edges
     while len(neg_pairs) < target_negs:
         u_idx, v_idx = np.random.randint(n_nodes, size=2)
         if u_idx != v_idx and not nx_graph.has_edge(valid_concepts[u_idx], valid_concepts[v_idx]):
@@ -296,12 +237,11 @@ def sample_edges_for_training(nx_graph, d_prev_dict, valid_concepts, concept_to_
 # STEP 4: SEMANTIC NODE EMBEDDINGS
 # ==========================================
 def generate_embeddings(valid_concepts, embed_model):
-    """Generates mean-pooled embeddings for all valid concepts."""
     embeddings = embed_model.encode(valid_concepts, show_progress_bar=False)
     return torch.tensor(embeddings, dtype=torch.float32).to(DEVICE)
 
 # ==========================================
-# STEP 5: GNN LINK PREDICTION (GraphSAGE via DGL)
+# STEP 5: GNN LINK PREDICTION (GraphSAGE via DGL 2.2.1)
 # ==========================================
 class GraphSAGELinkPredictor(nn.Module):
     def __init__(self, in_dim, hidden_dim):
@@ -318,20 +258,12 @@ class GraphSAGELinkPredictor(nn.Module):
         h1 = F.relu(self.conv1(g, h))
         h2 = self.conv2(g, h1)
         
-        # Positive scores
-        pos_h_u = h2[pos_u]
-        pos_h_v = h2[pos_v]
-        pos_scores = self.decoder(torch.cat([pos_h_u, pos_h_v], dim=1)).squeeze(1)
-        
-        # Negative scores
-        neg_h_u = h2[neg_u]
-        neg_h_v = h2[neg_v]
-        neg_scores = self.decoder(torch.cat([neg_h_u, neg_h_v], dim=1)).squeeze(1)
+        pos_scores = self.decoder(torch.cat([h2[pos_u], h2[pos_v]], dim=1)).squeeze(1)
+        neg_scores = self.decoder(torch.cat([h2[neg_u], h2[neg_v]], dim=1)).squeeze(1)
         
         return pos_scores, neg_scores, h2
 
 def train_gnn(g_dgl, node_features, pos_pairs, neg_pairs):
-    """Trains GraphSAGE link predictor using DGL."""
     pos_u = torch.tensor([p[0] for p in pos_pairs], dtype=torch.long, device=DEVICE)
     pos_v = torch.tensor([p[1] for p in pos_pairs], dtype=torch.long, device=DEVICE)
     neg_u = torch.tensor([n[0] for n in neg_pairs], dtype=torch.long, device=DEVICE)
@@ -356,10 +288,12 @@ def train_gnn(g_dgl, node_features, pos_pairs, neg_pairs):
         if epoch % 10 == 0:
             st.info(f"Epoch {epoch}/{TRAIN_EPOCHS} | Loss: {loss.item():.4f}")
             
-    # Get final node embeddings
+    # Get final node embeddings via clean forward pass
     model.eval()
     with torch.no_grad():
-        _, _, final_embeddings = model(g_dgl, node_features, pos_u[:1], pos_v[:1], neg_u[:1], neg_v[:1])
+        h = node_features.clone()
+        h = F.relu(model.conv1(g_dgl, h))
+        final_embeddings = model.conv2(g_dgl, h)
         
     return model, final_embeddings.cpu()
 
@@ -367,7 +301,6 @@ def train_gnn(g_dgl, node_features, pos_pairs, neg_pairs):
 # STEP 6: QUANTIFICATION & FEASIBILITY FILTER
 # ==========================================
 def compute_quantification_layer(valid_concepts, concept_abstract_map, all_energy_values, nx_graph):
-    """Computes historical energy proxy, expected gain, and feasibility."""
     concept_energies = {}
     for c in valid_concepts:
         doc_indices = concept_abstract_map[c]
@@ -376,7 +309,6 @@ def compute_quantification_layer(valid_concepts, concept_abstract_map, all_energ
             energies.extend(all_energy_values[idx])
         concept_energies[c] = np.median(energies) if energies else 0.0
         
-    # Train ridge regressor for expected synergy
     X_feat, y_target = [], []
     for u, v in nx_graph.edges():
         pu, pv = concept_energies.get(u, 0), concept_energies.get(v, 0)
@@ -385,19 +317,13 @@ def compute_quantification_layer(valid_concepts, concept_abstract_map, all_energ
         y_target.append(max(pu, pv) * 1.05)
         
     if len(X_feat) > 5:
-        X = np.array(X_feat)
-        y = np.array(y_target)
-        ridge = Ridge(alpha=1.0).fit(X, y)
+        ridge = Ridge(alpha=1.0).fit(np.array(X_feat), np.array(y_target))
     else:
         ridge = None
         
     return concept_energies, ridge
 
-def compute_research_direction_scores(model, final_emb, nx_graph, concept_to_id, valid_concepts, concept_energies, ridge, embed_model, d_prev_dict):
-    """Computes D_uv score for unlinked pairs."""
-    scores = []
-    
-    # Sample candidate pairs efficiently
+def compute_research_direction_scores(model, final_emb, nx_graph, valid_concepts, concept_energies, ridge, embed_model, d_prev_dict):
     n_samples = min(3000, len(valid_concepts) * 5)
     u_ids = np.random.randint(len(valid_concepts), size=n_samples)
     v_ids = np.random.randint(len(valid_concepts), size=n_samples)
@@ -415,7 +341,6 @@ def compute_research_direction_scores(model, final_emb, nx_graph, concept_to_id,
     u_idx_tensor = torch.tensor([p[0] for p in filtered_pairs], dtype=torch.long, device=DEVICE)
     v_idx_tensor = torch.tensor([p[1] for p in filtered_pairs], dtype=torch.long, device=DEVICE)
     
-    # GNN scores
     model.eval()
     with torch.no_grad():
         h_u = final_emb[u_idx_tensor].to(DEVICE)
@@ -424,11 +349,10 @@ def compute_research_direction_scores(model, final_emb, nx_graph, concept_to_id,
         gnn_logits = model.decoder(pair_cat).squeeze(1)
         gnn_scores = torch.sigmoid(gnn_logits).cpu().numpy()
         
-    # Semantic novelty
     emb_np = embed_model.encode(valid_concepts, show_progress_bar=False)
     cos_sims = np.sum(emb_np[u_idx_tensor.cpu().numpy()] * emb_np[v_idx_tensor.cpu().numpy()], axis=1)
     
-    # Compute scores
+    scores = []
     for i, (u_idx, v_idx, u_c, v_c) in enumerate(filtered_pairs):
         try:
             d_prev = d_prev_dict[u_c][v_c]
@@ -473,7 +397,6 @@ def compute_research_direction_scores(model, final_emb, nx_graph, concept_to_id,
 # STEP 7: LLM CURATION & RESEARCH DIRECTIONS
 # ==========================================
 def generate_research_directions(top_pairs_df, tokenizer, model):
-    """Generates curated research directions using lightweight LLM."""
     results = []
     prompt_template = """You are a materials science research strategist. 
 For the novel concept combination: "{u}" + "{v}"
@@ -510,8 +433,8 @@ Be concise and technically precise."""
 # ==========================================
 def main():
     st.set_page_config(page_title="LIB Concept Graph Predictor", layout="wide")
-    st.title("🔋 Lightweight LLM + Concept Graph for LIB Research Directions")
-    st.caption("Predicts novel, quantified research directions from scientific abstracts using <1B parameter models & DGL GraphSAGE.")
+    st.title("🔋 Lightweight LLM + DGL Concept Graph for LIB Research Directions")
+    st.caption("Predicts novel, quantified research directions from scientific abstracts using <1B parameter models & DGL 2.2.1 GraphSAGE.")
     
     with st.sidebar:
         st.header("Configuration")
@@ -557,7 +480,6 @@ def main():
                 nx_graph, d_prev_dict = build_concept_graph(all_concepts, concept_to_id)
                 pos_pairs, neg_pairs = sample_edges_for_training(nx_graph, d_prev_dict, valid_concepts, concept_to_id)
                 st.write(f"✅ Graph: {len(valid_concepts)} nodes, {nx_graph.number_of_edges()} edges.")
-                st.write(f"✅ Training pairs: {len(pos_pairs)} pos, {len(neg_pairs)} neg.")
             progress.progress(40)
             
             # Step 4: Embeddings
@@ -565,9 +487,8 @@ def main():
                 node_features = generate_embeddings(valid_concepts, embed_model)
             progress.progress(50)
             
-            # Step 5: GNN with DGL
+            # Step 5: GNN with DGL 2.2.1 (GraphBolt - no torchdata)
             with st.status("Training DGL GraphSAGE link predictor..."):
-                # Build DGL graph from NetworkX edges
                 src_list = [concept_to_id[u] for u, v in pos_pairs + neg_pairs]
                 dst_list = [concept_to_id[v] for u, v in pos_pairs + neg_pairs]
                 src = torch.tensor(src_list, dtype=torch.long)
@@ -583,14 +504,14 @@ def main():
             # Step 6: Quantification
             with st.status("Computing energy density proxies & feasibility..."):
                 concept_energies, ridge = compute_quantification_layer(valid_concepts, concept_abstract_map, all_energies, nx_graph)
-                top_scores = compute_research_direction_scores(gnn_model, final_emb, nx_graph, concept_to_id, valid_concepts, concept_energies, ridge, embed_model, d_prev_dict)
+                top_scores = compute_research_direction_scores(gnn_model, final_emb, nx_graph, valid_concepts, concept_energies, ridge, embed_model, d_prev_dict)
             progress.progress(80)
             
             # Step 7: Curation
             with st.status("Generating LLM-curated research directions..."):
                 directions_df = generate_research_directions(top_scores, tokenizer, model)
             progress.progress(100)
-            status.update(label="Pipeline complete!", state="complete", expanded=False)
+            status.update(label="✅ Pipeline complete!", state="complete", expanded=False)
             
             # Display Results
             st.subheader("📊 Top Predicted Research Directions")
