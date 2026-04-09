@@ -4,4 +4,4 @@
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/batterygraphllm2-streamlit-red)](https://concepts-in-energy-density-of-batteries2.streamlit.app/) (LLM+pure pytorch SparseGraphSAGE, no DGL)
 
-[![integratedllmgraphbattery](https://img.shields.io/badge/batterygraphllm3-streamlit-red)](https://concepts-in-energy-density-of-batteries3.streamlit.app/) (LLM+DGL, works in python 3.12, unresolved errors )
+[![integratedllmgraphbattery](https://img.shields.io/badge/batterygraphllm3-streamlit-red)](https://concepts-in-energy-density-of-batteries3.streamlit.app/) (LLM+DGL, performs better in python 3.12 and 3.11 as compared in other versions, unresolved errors as DGL is not cloud-friendly )
