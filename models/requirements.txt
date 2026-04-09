@@ -1,5 +1,5 @@
 streamlit>=1.28.0
-#torch>=2.2.0
+torch
 #dgl==2.2.1
 #sentence-transformers>=2.2.0
 #transformers>=4.35.0
