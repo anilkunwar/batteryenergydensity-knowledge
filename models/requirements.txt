@@ -4,6 +4,7 @@ scipy
 plotly
 seaborn
 torch>=2.2.0
+torchvision
 sentence-transformers
 transformers
 accelerate
