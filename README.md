@@ -14,6 +14,8 @@
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/csvtojson-v2-green)](https://metadata-csv-to-json2.streamlit.app/) (single csv to single json file)
 
-[![integratedllmgraphbattery](https://img.shields.io/badge/csvtojson-v3-green)](https://metadata-csv-to-json3.streamlit.app/) (multiple csv to single json file)
+[![integratedllmgraphbattery](https://img.shields.io/badge/csvtojson-v3-green)](https://metadata-csv-to-json3.streamlit.app/) (multiple csv to single json file with unique id for each metadata entity)
+
+[![integratedllmgraphbattery](https://img.shields.io/badge/csvtojson-v4-green)](https://metadata-csv-to-json4.streamlit.app/) (single  csv with multiple metadata entity to single json file with unique id for each metadata entity)
 
 
