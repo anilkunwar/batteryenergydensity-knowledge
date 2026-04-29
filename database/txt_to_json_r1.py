@@ -1,5 +1,5 @@
 """
-Scopus to JSON Converter
+Text file to JSON Converter
 A Streamlit app that parses Scopus text exports and converts them to structured JSON.
 """
 
