@@ -1,6 +1,7 @@
 """
-Text file to JSON Converter
+Scopus to JSON Converter
 A Streamlit app that parses Scopus text exports and converts them to structured JSON.
+Supports Unicode characters (accented letters, special characters) in author names.
 """
 
 import streamlit as st
@@ -9,15 +10,19 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+# Unicode letter pattern: matches any letter in any language
+UNICODE_LETTER = r'[A-Za-z\u00C0-\u024F\u1E00-\u1EFF]'  # Latin extended
+AUTHOR_NAME_PATTERN = rf'{UNICODE_LETTER}+(?:[-\s]{UNICODE_LETTER}+)*'
+
 
 def parse_scopus_text(text):
     """
     Parse Scopus text export into a list of article dictionaries.
+    Handles Unicode characters in author names and affiliations.
     """
     articles = []
     
     # Split by "EXPORT DATE:" to separate individual records
-    # The first split item is usually empty or header text
     raw_records = re.split(r'(?=EXPORT DATE:)', text.strip())
     
     for raw_record in raw_records:
@@ -32,8 +37,14 @@ def parse_scopus_text(text):
         if export_date_match:
             article['export_date'] = export_date_match.group(1).strip()
         
-        # AUTHORS (short format)
-        authors_short = re.search(r'^([A-Z][a-zA-Z\-]+(?:,\s*[A-Z]\.)+(?:;\s*[A-Z][a-zA-Z\-]+(?:,\s*[A-Z]\.)+)*)', raw_record, re.MULTILINE)
+        # AUTHORS (short format) - with Unicode support
+        # Pattern: LastName I., LastName2 I.I., etc.
+        # Uses Unicode letter class \w with re.UNICODE flag, but safer to use explicit range
+        authors_short = re.search(
+            r'^(' + AUTHOR_NAME_PATTERN + r'(?:,\s*[A-Z]\.)+(?:;\s*' + AUTHOR_NAME_PATTERN + r'(?:,\s*[A-Z]\.)+)*)',
+            raw_record,
+            re.MULTILINE
+        )
         if authors_short:
             authors_text = authors_short.group(1)
             article['authors'] = [a.strip() for a in authors_text.split(';')]
@@ -46,6 +57,7 @@ def parse_scopus_text(text):
             author_entries = re.findall(r'([^;]+?\(\d+\))', full_names_text)
             authors_full = []
             for entry in author_entries:
+                # Allow Unicode in names
                 name_match = re.match(r'(.+?),\s*(.+?)\s*\((\d+)\)', entry.strip())
                 if name_match:
                     authors_full.append({
@@ -61,8 +73,7 @@ def parse_scopus_text(text):
             ids_text = author_ids_match.group(1)
             article['author_ids'] = [id.strip() for id in ids_text.split(';')]
         
-        # TITLE
-        # Title is usually the line after author IDs, before the year/journal line
+        # TITLE - Unicode safe (any character)
         title_match = re.search(r'\d+(?:;\s*\d+)+\s*\n\s*\n(.+?)\n\s*\(\d{4}\)', raw_record, re.DOTALL)
         if title_match:
             article['title'] = ' '.join(title_match.group(1).split())
@@ -91,7 +102,7 @@ def parse_scopus_text(text):
         if url_match:
             article['scopus_url'] = url_match.group(1)
         
-        # AFFILIATIONS
+        # AFFILIATIONS - Unicode safe
         affil_match = re.search(r'AFFILIATIONS:\s*(.+?)(?:\n\s*ABSTRACT:|$)', raw_record, re.DOTALL)
         if affil_match:
             affils_text = affil_match.group(1).strip()
@@ -118,8 +129,7 @@ def parse_scopus_text(text):
         corr_match = re.search(r'CORRESPONDENCE ADDRESS:\s*(.+?)(?:\n\s*PUBLISHER:|$)', raw_record, re.DOTALL)
         if corr_match:
             article['correspondence_address'] = ' '.join(corr_match.group(1).split())
-            # Extract email
-            email_match = re.search(r'email:\s*([^\s;]+)', article['correspondence_address'])
+            email_match = re.search(r'email:\s*([^\s;]+)', article['correspondence_address'], re.IGNORECASE)
             if email_match:
                 article['correspondence_email'] = email_match.group(1)
         
@@ -163,8 +173,8 @@ def parse_scopus_text(text):
         if source_match:
             article['source'] = source_match.group(1).strip()
         
-        # Only add if we found at least a title
-        if 'title' in article and article['title']:
+        # Only add if we found at least a title or authors
+        if 'title' in article or 'authors' in article:
             articles.append(article)
     
     return articles
@@ -180,6 +190,7 @@ def main():
     st.title("📚 Scopus to JSON Converter")
     st.markdown("""
     Convert Scopus text exports into structured JSON format.
+    **Supports Unicode characters** (accented letters, special characters in author names).
     Paste your Scopus text below or upload a `.txt` file.
     """)
     
@@ -249,6 +260,7 @@ def main():
     # Instructions
     with st.expander("📖 How to use"):
         st.markdown("""
+        ### Instructions
         1. **Export from Scopus**: In Scopus, select your articles and choose "Export" → "Text" format
         2. **Copy the text**: Copy the exported text (including all fields like EXPORT DATE, AUTHORS, etc.)
         3. **Paste or Upload**: Paste the text in the left panel or save it as a `.txt` file and upload it
@@ -260,6 +272,9 @@ def main():
         Year, Journal, Volume, Article Number, Cited Count, DOI, Scopus URL, Affiliations, 
         Abstract, Author Keywords, Index Keywords, Correspondence Address, Publisher, ISSN, 
         CODEN, Language, Abbreviated Source Title, Document Type, Publication Stage, and Source.
+        
+        ### Unicode Support
+        Names like `Råback`, `Sørensen`, `Müller`, `François` are now correctly parsed.
         """)
 
 
