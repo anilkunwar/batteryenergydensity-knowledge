@@ -4,7 +4,7 @@ Scopus CSV to JSON Converter - Multi-file, Multi-section
 - Also accept user uploads
 - All articles get unique IDs and are combined into a single JSON
 - Supports deduplication by DOI/Scopus ID
-- Custom folder path input via UI
+- Custom folder path input via UI with os.path.join path handling
 - Debug info for troubleshooting path issues
 """
 
@@ -17,10 +17,10 @@ import os
 from pathlib import Path
 from datetime import datetime
 from io import StringIO
-from typing import Optional
+from typing import Optional, List, Tuple, Dict, Any
 
 
-def parse_single_csv_section(section_content: str, source_filename: str, section_index: int) -> list:
+def parse_single_csv_section(section_content: str, source_filename: str, section_index: int) -> List[Dict[str, Any]]:
     """
     Parse one CSV section, return list of dicts with unique IDs.
     
@@ -33,8 +33,10 @@ def parse_single_csv_section(section_content: str, source_filename: str, section
         List of article dictionaries with metadata fields added
     """
     try:
-        # Read CSV with UTF-8 encoding, handle missing values
-        df = pd.read_csv(StringIO(section_content), encoding='utf-8', dtype=str)
+        # Read CSV with UTF-8 encoding, handle missing values, force string dtype to preserve leading zeros
+        df = pd.read_csv(StringIO(section_content), encoding='utf-8', dtype=str, keep_default_na=False)
+        # Replace empty strings with None for JSON compatibility
+        df = df.replace('', None)
         df = df.where(pd.notnull(df), None)
         records = df.to_dict(orient='records')
         
@@ -60,7 +62,7 @@ def parse_single_csv_section(section_content: str, source_filename: str, section
         return []
 
 
-def parse_multi_section_csv(file_content: str, source_filename: str) -> tuple[list, dict]:
+def parse_multi_section_csv(file_content: str, source_filename: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     Split file by blank lines, parse each chunk as CSV.
     
@@ -73,7 +75,7 @@ def parse_multi_section_csv(file_content: str, source_filename: str) -> tuple[li
     """
     # Split by one or more blank lines (handles \n\n, \n \n, etc.)
     sections = re.split(r'\n\s*\n', file_content.strip())
-    all_articles = []
+    all_articles: List[Dict[str, Any]] = []
     sections_parsed = 0
     
     for i, section in enumerate(sections):
@@ -99,7 +101,7 @@ def parse_multi_section_csv(file_content: str, source_filename: str) -> tuple[li
     return all_articles, summary
 
 
-def parse_single_csv_file(file_content: str, source_filename: str) -> tuple[list, dict]:
+def parse_single_csv_file(file_content: str, source_filename: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     Parse a CSV file (may be multi-section or single).
     
@@ -127,35 +129,89 @@ def parse_single_csv_file(file_content: str, source_filename: str) -> tuple[list
         return articles, summary
 
 
-def get_csv_files_from_folder(folder_name: str) -> list:
+def get_csv_files_from_folder(folder_path: str) -> List[Path]:
     """
-    Scan a folder for all .csv files.
+    Scan a folder for all .csv files using os.path.join for path construction.
     
     Args:
-        folder_name: Path to folder (relative or absolute)
+        folder_path: Path to folder (relative or absolute)
         
     Returns:
         List of Path objects for CSV files found
     """
-    folder_path = Path(folder_name)
+    # Use os.path.join for cross-platform path construction
+    normalized_path = os.path.normpath(folder_path)
     
-    if not folder_path.exists():
+    if not os.path.exists(normalized_path):
         return []
-    if not folder_path.is_dir():
-        st.warning(f"⚠️ Path '{folder_name}' exists but is not a directory")
+    if not os.path.isdir(normalized_path):
+        st.warning(f"⚠️ Path '{folder_path}' exists but is not a directory")
         return []
     
-    csv_files = sorted(folder_path.glob("*.csv"))
+    # List all CSV files in the folder
+    csv_files = []
+    try:
+        for filename in os.listdir(normalized_path):
+            if filename.lower().endswith('.csv'):
+                file_full_path = os.path.join(normalized_path, filename)
+                if os.path.isfile(file_full_path):
+                    csv_files.append(Path(file_full_path))
+    except PermissionError:
+        st.warning(f"⚠️ Permission denied reading folder: {normalized_path}")
+        return []
+    except Exception as e:
+        st.warning(f"⚠️ Error scanning folder {normalized_path}: {e}")
+        return []
+    
+    # Sort for consistent ordering
+    csv_files.sort(key=lambda p: p.name)
     
     if not csv_files:
-        st.info(f"📁 Folder '{folder_name}' contains no .csv files")
+        st.info(f"📁 Folder '{folder_path}' contains no .csv files")
     else:
-        st.success(f"📁 Found {len(csv_files)} CSV file(s) in '{folder_name}'")
+        st.success(f"📁 Found {len(csv_files)} CSV file(s) in '{folder_path}'")
     
     return csv_files
 
 
-def process_file_from_path(file_path: Path) -> tuple[list, dict]:
+def find_metadatabase_folder() -> str:
+    """
+    Auto-detect the metadatabase folder by checking common paths.
+    Uses os.path.join for all path operations.
+    
+    Returns:
+        String path to the first valid metadatabase folder found, or default fallback
+    """
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Define candidate paths using os.path.join
+    candidates = [
+        os.path.join(script_dir, "metadatabase"),
+        os.path.join(script_dir, "database", "metadatabase"),
+        os.path.join(script_dir, "data", "metadatabase"),
+        os.path.join(script_dir, "metadatabase", "csv"),
+        os.path.join(os.getcwd(), "metadatabase"),
+        os.path.join(os.getcwd(), "database", "metadatabase"),
+        os.path.join(os.getcwd(), "data", "metadatabase"),
+        "metadatabase",  # relative to cwd
+        os.path.join("database", "metadatabase"),  # relative to cwd
+        os.path.join("data", "metadatabase"),  # relative to cwd
+    ]
+    
+    for path in candidates:
+        normalized = os.path.normpath(path)
+        if os.path.exists(normalized) and os.path.isdir(normalized):
+            # Verify it contains CSV files
+            has_csv = any(f.lower().endswith('.csv') for f in os.listdir(normalized))
+            if has_csv:
+                return path
+    
+    # Return default fallback
+    return os.path.join("database", "metadatabase")
+
+
+def process_file_from_path(file_path: Path) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     Read a CSV file from disk and parse it.
     
@@ -166,34 +222,39 @@ def process_file_from_path(file_path: Path) -> tuple[list, dict]:
         Tuple of (articles list, summary dict)
     """
     filename = file_path.name
+    file_str_path = str(file_path)
     
     try:
-        # Try UTF-8 first, fall back to latin-1 for older Scopus exports
-        for encoding in ['utf-8', 'latin-1', 'cp1252']:
+        # Try multiple encodings in order of preference
+        content = None
+        for encoding in ['utf-8', 'utf-8-sig', 'latin-1', 'cp1252', 'iso-8859-1']:
             try:
-                with open(file_path, 'r', encoding=encoding) as f:
+                with open(file_str_path, 'r', encoding=encoding) as f:
                     content = f.read()
+                if encoding != 'utf-8':
+                    st.info(f"ℹ️ `{filename}` read with fallback encoding: {encoding}")
                 break
             except UnicodeDecodeError:
                 continue
-        else:
+        
+        if content is None:
             raise ValueError("Could not decode file with any supported encoding")
         
         articles, summary = parse_single_csv_file(content, filename)
         return articles, summary
         
     except FileNotFoundError:
-        st.error(f"❌ File not found: `{file_path}`")
-        return [], {"error": f"File not found: {file_path}"}
+        st.error(f"❌ File not found: `{file_str_path}`")
+        return [], {"error": f"File not found: {file_str_path}"}
     except PermissionError:
-        st.error(f"❌ Permission denied reading: `{file_path}`")
-        return [], {"error": f"Permission denied: {file_path}"}
+        st.error(f"❌ Permission denied reading: `{file_str_path}`")
+        return [], {"error": f"Permission denied: {file_str_path}"}
     except Exception as e:
-        st.error(f"❌ Error reading `{file_path}`: {type(e).__name__}: {e}")
+        st.error(f"❌ Error reading `{file_str_path}`: {type(e).__name__}: {e}")
         return [], {"error": f"{type(e).__name__}: {str(e)}"}
 
 
-def process_uploaded_files(uploaded_files: list) -> tuple[list, dict]:
+def process_uploaded_files(uploaded_files: List) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     Process user-uploaded files.
     
@@ -203,15 +264,31 @@ def process_uploaded_files(uploaded_files: list) -> tuple[list, dict]:
     Returns:
         Tuple of (all_articles list, file_summaries dict)
     """
-    all_articles = []
-    file_summaries = {}
+    all_articles: List[Dict[str, Any]] = []
+    file_summaries: Dict[str, Any] = {}
     total_files = len(uploaded_files)
     
     for idx, uploaded_file in enumerate(uploaded_files):
         try:
             # Read and decode file content
             file_bytes = uploaded_file.read()
-            content = file_bytes.decode('utf-8')
+            content = None
+            
+            # Try UTF-8 first
+            try:
+                content = file_bytes.decode('utf-8')
+            except UnicodeDecodeError:
+                # Try fallback encodings
+                for encoding in ['utf-8-sig', 'latin-1', 'cp1252']:
+                    try:
+                        content = file_bytes.decode(encoding)
+                        st.info(f"ℹ️ `{uploaded_file.name}` decoded with fallback: {encoding}")
+                        break
+                    except UnicodeDecodeError:
+                        continue
+            
+            if content is None:
+                raise UnicodeDecodeError("utf-8", file_bytes[:100], 0, 100, "Could not decode with any encoding")
             
             articles, summary = parse_single_csv_file(content, uploaded_file.name)
             all_articles.extend(articles)
@@ -222,17 +299,9 @@ def process_uploaded_files(uploaded_files: list) -> tuple[list, dict]:
             else:
                 st.warning(f"⚠️ No articles found in upload `{uploaded_file.name}`")
                 
-        except UnicodeDecodeError:
-            # Try fallback encoding
-            try:
-                content = file_bytes.decode('latin-1')
-                articles, summary = parse_single_csv_file(content, uploaded_file.name)
-                all_articles.extend(articles)
-                file_summaries[uploaded_file.name] = summary
-                st.success(f"✅ Upload `{uploaded_file.name}` (latin-1) → {summary['total_articles']} articles")
-            except Exception as e2:
-                st.error(f"❌ Encoding error in `{uploaded_file.name}`: {e2}")
-                file_summaries[uploaded_file.name] = {"error": f"Encoding: {e2}"}
+        except UnicodeDecodeError as e:
+            st.error(f"❌ Encoding error in `{uploaded_file.name}`: {e}")
+            file_summaries[uploaded_file.name] = {"error": f"Encoding: {e}"}
         except Exception as e:
             st.error(f"❌ Error processing upload `{uploaded_file.name}`: {type(e).__name__}: {e}")
             file_summaries[uploaded_file.name] = {"error": f"{type(e).__name__}: {str(e)}"}
@@ -240,7 +309,7 @@ def process_uploaded_files(uploaded_files: list) -> tuple[list, dict]:
     return all_articles, file_summaries
 
 
-def process_folder_files(folder_csv_paths: list) -> tuple[list, dict]:
+def process_folder_files(folder_csv_paths: List[Path]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     Process all CSV files from the local folder.
     
@@ -250,8 +319,8 @@ def process_folder_files(folder_csv_paths: list) -> tuple[list, dict]:
     Returns:
         Tuple of (all_articles list, file_summaries dict)
     """
-    all_articles = []
-    file_summaries = {}
+    all_articles: List[Dict[str, Any]] = []
+    file_summaries: Dict[str, Any] = {}
     
     for file_path in folder_csv_paths:
         articles, summary = process_file_from_path(file_path)
@@ -268,7 +337,7 @@ def process_folder_files(folder_csv_paths: list) -> tuple[list, dict]:
     return all_articles, file_summaries
 
 
-def deduplicate_articles(articles: list, key_field: str = 'DOI') -> tuple[list, int]:
+def deduplicate_articles(articles: List[Dict[str, Any]], key_field: str = 'DOI') -> Tuple[List[Dict[str, Any]], int]:
     """
     Remove duplicate articles based on a key field.
     
@@ -282,16 +351,18 @@ def deduplicate_articles(articles: list, key_field: str = 'DOI') -> tuple[list, 
     if not articles:
         return [], 0
     
-    seen = set()
-    unique = []
+    seen: set = set()
+    unique: List[Dict[str, Any]] = []
     duplicates_removed = 0
     
     for article in articles:
         # Try multiple potential ID fields in order of preference
         key = None
-        for field in [key_field, 'Scopus ID', 'EID', 'DOI', 'unique_id']:
-            if field in article and article[field]:
-                key = f"{field}:{article[field]}"
+        id_fields = [key_field, 'Scopus ID', 'EID', 'DOI', 'Article ID', 'unique_id']
+        
+        for field in id_fields:
+            if field in article and article[field] and str(article[field]).strip():
+                key = f"{field}:{str(article[field]).strip().lower()}"
                 break
         
         if key is None:
@@ -307,6 +378,15 @@ def deduplicate_articles(articles: list, key_field: str = 'DOI') -> tuple[list, 
     return unique, duplicates_removed
 
 
+def format_file_size(size_bytes: int) -> str:
+    """Format file size in human-readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.1f} TB"
+
+
 def main():
     # Page configuration
     st.set_page_config(
@@ -314,8 +394,8 @@ def main():
         page_icon="📚",
         layout="wide",
         menu_items={
-            'Get Help': 'https://github.com/yourusername/scopus-converter',
-            'Report a bug': 'https://github.com/yourusername/scopus-converter/issues',
+            'Get Help': 'https://github.com/anilkunwar/batteryenergydensity-knowledge',
+            'Report a bug': 'https://github.com/anilkunwar/batteryenergydensity-knowledge/issues',
             'About': "### Scopus CSV to JSON Converter\n\nConvert Scopus export CSV files (including multi-section formats) to a unified JSON with unique IDs."
         }
     )
@@ -325,12 +405,13 @@ def main():
     st.markdown(
         "**Convert Scopus export CSV files to unified JSON format**\n\n"
         "**Features:**\n"
-        "- ✅ Auto-detect CSV files in `metadatabase` folder\n"
+        "- ✅ Auto-detect CSV files in `metadatabase` folder (with path auto-detection)\n"
         "- ✅ Upload additional CSV files (multiple allowed)\n"
         "- ✅ Handle multi-section CSV exports (separated by blank lines)\n"
         "- ✅ Assign unique UUID v4 to every article\n"
-        "- ✅ Optional deduplication by DOI or Scopus ID\n"
-        "- ✅ Single combined JSON output with metadata"
+        "- ✅ Optional deduplication by DOI, Scopus ID, or EID\n"
+        "- ✅ Single combined JSON output with full metadata\n"
+        "- ✅ Cross-platform path handling with os.path.join"
     )
     
     # Sidebar: Instructions and settings
@@ -339,11 +420,19 @@ def main():
         
         # Folder path configuration
         st.subheader("📁 Source Folder")
+        
+        # Auto-detect and set default path
+        default_folder = find_metadatabase_folder()
+        
         folder_path_input = st.text_input(
             "CSV folder path (relative or absolute)",
-            value="metadatabase",
-            help="Enter path to folder containing Scopus CSV exports. Use '.' for current directory."
+            value=default_folder,
+            help="Enter path to folder containing Scopus CSV exports. Auto-detected from common locations."
         )
+        
+        # Show resolved absolute path
+        resolved_path = os.path.normpath(os.path.join(os.getcwd(), folder_path_input)) if not os.path.isabs(folder_path_input) else os.path.normpath(folder_path_input)
+        st.caption(f"Resolved: `{resolved_path}`")
         
         # Deduplication option
         st.subheader("🔁 Deduplication")
@@ -354,7 +443,7 @@ def main():
         )
         dedup_field = st.selectbox(
             "Primary key for deduplication",
-            options=['DOI', 'Scopus ID', 'EID', 'Title'],
+            options=['DOI', 'Scopus ID', 'EID', 'Title', 'Authors'],
             index=0,
             disabled=not enable_dedup,
             help="Field to use as primary identifier when removing duplicates"
@@ -365,12 +454,24 @@ def main():
         show_debug = st.checkbox("Show working directory info", value=False)
         
         if show_debug:
-            st.code(f"📍 Working directory: {os.getcwd()}")
-            st.code(f"📁 Folder exists: {Path(folder_path_input).exists()}")
-            st.code(f"📁 Is directory: {Path(folder_path_input).is_dir() if Path(folder_path_input).exists() else 'N/A'}")
-            if Path(folder_path_input).exists() and Path(folder_path_input).is_dir():
-                csv_count = len(list(Path(folder_path_input).glob("*.csv")))
-                st.code(f"📄 CSV files found: {csv_count}")
+            st.markdown("**Path Diagnostics**")
+            st.code(f"📍 os.getcwd(): {os.getcwd()}")
+            st.code(f"📄 Script dir: {os.path.dirname(os.path.abspath(__file__))}")
+            st.code(f"📁 Input path: {folder_path_input}")
+            st.code(f"🔗 Resolved: {resolved_path}")
+            st.code(f"✅ Exists: {os.path.exists(resolved_path)}")
+            st.code(f"📂 Is dir: {os.path.isdir(resolved_path) if os.path.exists(resolved_path) else 'N/A'}")
+            
+            if os.path.exists(resolved_path) and os.path.isdir(resolved_path):
+                try:
+                    csv_files = [f for f in os.listdir(resolved_path) if f.lower().endswith('.csv')]
+                    st.code(f"📄 CSV files: {len(csv_files)}")
+                    for cf in csv_files[:5]:
+                        fp = os.path.join(resolved_path, cf)
+                        size = os.path.getsize(fp)
+                        st.caption(f"  • {cf} ({format_file_size(size)})")
+                except Exception as e:
+                    st.code(f"⚠️ Error listing: {e}")
         
         # Usage instructions
         st.header("📖 How to Use")
@@ -382,18 +483,48 @@ def main():
             "5. **Download**: Get your combined JSON file\n\n"
             "**Note**: Multi-section CSVs (with blank line separators) are auto-detected."
         )
+        
+        # Quick actions
+        st.subheader("⚡ Quick Actions")
+        if st.button("🔄 Refresh Folder Scan", use_container_width=True):
+            st.rerun()
+        
+        if st.button("🧹 Clear Session State", use_container_width=True):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
     
     # Main content area
     st.divider()
     
     # Folder scanning
     st.subheader("📁 Folder Source")
-    folder_csv_paths = get_csv_files_from_folder(folder_path_input)
+    
+    # Validate and scan folder
+    folder_csv_paths = []
+    folder_valid = False
+    
+    if folder_path_input:
+        normalized_input = os.path.normpath(folder_path_input)
+        if os.path.isabs(normalized_input):
+            check_path = normalized_input
+        else:
+            check_path = os.path.normpath(os.path.join(os.getcwd(), folder_path_input))
+        
+        if os.path.exists(check_path) and os.path.isdir(check_path):
+            folder_valid = True
+            folder_csv_paths = get_csv_files_from_folder(check_path)
+        else:
+            st.warning(f"⚠️ Folder not found: `{folder_path_input}`\n\nResolved path: `{check_path}`")
     
     if folder_csv_paths:
         with st.expander(f"View {len(folder_csv_paths)} CSV file(s) found", expanded=False):
             for fp in folder_csv_paths:
-                st.text(f"• {fp.name} ({fp.stat().st_size:,} bytes)")
+                try:
+                    size = os.path.getsize(str(fp))
+                    st.text(f"• {fp.name} ({format_file_size(size)})")
+                except:
+                    st.text(f"• {fp.name}")
     
     # File upload section
     st.subheader("📤 Upload Additional Files")
@@ -407,19 +538,19 @@ def main():
     if uploaded_files:
         with st.expander(f"View {len(uploaded_files)} uploaded file(s)", expanded=False):
             for uf in uploaded_files:
-                st.text(f"• {uf.name} ({uf.size:,} bytes)")
+                st.text(f"• {uf.name} ({format_file_size(uf.size)})")
     
     # Convert button
     st.divider()
-    col1, col2 = st.columns([1, 3])
-    with col1:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
         convert_btn = st.button("🚀 Convert to JSON", type="primary", use_container_width=True)
     
     # Processing logic
     if convert_btn:
-        all_articles = []
-        file_summaries = {}
-        processing_errors = []
+        all_articles: List[Dict[str, Any]] = []
+        file_summaries: Dict[str, Any] = {}
+        processing_errors: List[str] = []
         
         # Progress indicator
         progress_placeholder = st.empty()
@@ -428,17 +559,20 @@ def main():
         total_sources = len(folder_csv_paths) + (len(uploaded_files) if uploaded_files else 0)
         if total_sources == 0:
             st.warning("⚠️ No source files found. Add files to the folder or upload CSV files to continue.")
+            st.info("💡 Tip: Check the sidebar debug info to verify your folder path is correct.")
             return
         
         progress_bar = st.progress(0)
+        processed_count = 0
         
         # Process folder files
-        if folder_csv_paths:
-            status_placeholder.info(f"🔄 Processing {len(folder_csv_paths)} file(s) from folder...")
+        if folder_csv_paths and folder_valid:
+            status_placeholder.info(f"🔄 Processing {len(folder_csv_paths)} file(s) from folder: `{folder_path_input}`...")
             folder_articles, folder_summaries = process_folder_files(folder_csv_paths)
             all_articles.extend(folder_articles)
             file_summaries.update(folder_summaries)
-            progress_bar.progress(len(folder_csv_paths) / max(total_sources, 1))
+            processed_count += len(folder_csv_paths)
+            progress_bar.progress(processed_count / max(total_sources, 1))
         
         # Process uploaded files
         if uploaded_files:
@@ -446,7 +580,8 @@ def main():
             upload_articles, upload_summaries = process_uploaded_files(uploaded_files)
             all_articles.extend(upload_articles)
             file_summaries.update(upload_summaries)
-            progress_bar.progress(1.0)
+            processed_count += len(uploaded_files)
+            progress_bar.progress(processed_count / max(total_sources, 1))
         
         status_placeholder.empty()
         progress_bar.empty()
@@ -462,13 +597,22 @@ def main():
         
         # Final results
         if not all_articles:
-            st.error("❌ No articles found in any source files. Please check your CSV format and encoding.")
+            st.error("❌ No articles found in any source files. Please check:")
+            st.markdown("""
+            - ✅ CSV files have proper headers and data rows
+            - ✅ Files are UTF-8 encoded (or try latin-1)
+            - ✅ Multi-section files use blank lines as separators
+            - ✅ Folder path is correct (check sidebar debug info)
+            """)
             return
         
         # Success summary
         total_articles = len(all_articles)
         total_files_with_data = sum(1 for s in file_summaries.values() if s.get("total_articles", 0) > 0)
+        total_json_size = len(json.dumps(all_articles, ensure_ascii=False))
+        
         st.success(f"✅ **Success!** Processed **{total_articles:,} article(s)** from **{total_files_with_data} file(s)**")
+        st.caption(f"Output size: ~{format_file_size(total_json_size)} (uncompressed JSON)")
         
         # Per-file summary table
         summary_data = []
@@ -484,37 +628,50 @@ def main():
         if summary_data:
             summary_df = pd.DataFrame(summary_data)
             st.subheader("📊 Processing Summary")
-            st.dataframe(
-                summary_df.style.applymap(
-                    lambda x: "color: red; font-weight: bold" if "Error" in str(x) else "",
-                    subset=["Status"]
-                ),
-                use_container_width=True,
-                hide_index=True
-            )
+            
+            # Style the dataframe
+            def highlight_errors(val):
+                if isinstance(val, str) and "Error" in val:
+                    return "color: #dc3545; font-weight: 600"
+                return ""
+            
+            styled_df = summary_df.style.map(highlight_errors, subset=["Status"])
+            st.dataframe(styled_df, use_container_width=True, hide_index=True)
         
         # Preview section
         with st.expander("🔍 Preview: First 5 Articles (Unique IDs)", expanded=False):
             for i, article in enumerate(all_articles[:5], 1):
-                title = article.get('Title') or article.get('title') or article.get('Document title') or 'N/A'
-                authors = article.get('Authors') or article.get('authors') or 'N/A'
-                year = article.get('Year') or article.get('publicationYear') or 'N/A'
+                # Try common title field names
+                title = (article.get('Title') or article.get('title') or 
+                        article.get('Document title') or article.get('Document Title') or 
+                        article.get('Article Title') or 'N/A')
+                
+                authors = (article.get('Authors') or article.get('authors') or 
+                          article.get('Author(s)') or article.get('Author names') or 'N/A')
+                
+                year = (article.get('Year') or article.get('publicationYear') or 
+                       article.get('Publication Year') or article.get('Year of Publication') or 'N/A')
+                
                 source = article.get('source_file', 'unknown')
                 uid = article.get('unique_id', 'N/A')
                 
-                st.markdown(f"**{i}.** `{uid[:8]}...` | **{title[:100]}{'...' if len(str(title)) > 100 else ''}**")
-                st.caption(f"Authors: {authors} | Year: {year} | Source: {source}")
+                st.markdown(f"**{i}.** `{uid[:8]}...`")
+                st.markdown(f"📝 **{str(title)[:120]}{'...' if len(str(title)) > 120 else ''}**")
+                st.caption(f"👥 {authors} | 📅 {year} | 📁 {source}")
                 st.divider()
         
         # JSON output
         st.subheader("💾 Download Combined JSON")
+        
+        # Generate JSON with proper formatting
         combined_json = json.dumps(all_articles, indent=2, ensure_ascii=False)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         combined_filename = f"scopus_combined_{timestamp}.json"
         
-        # Download button
+        # Download button with size info
+        json_size_kb = len(combined_json.encode('utf-8')) / 1024
         st.download_button(
-            label=f"⬇️ Download JSON ({len(all_articles):,} articles, {len(combined_json)/1024:.1f} KB)",
+            label=f"⬇️ Download JSON ({total_articles:,} articles, {json_size_kb:.1f} KB)",
             data=combined_json,
             file_name=combined_filename,
             mime="application/json",
@@ -526,16 +683,49 @@ def main():
             if all_articles:
                 st.json(all_articles[0], expanded=False)
         
-        # Copy JSON to clipboard option (Streamlit >= 0.87)
-        st.caption("💡 Tip: Use the download button for large outputs. For small datasets, you can also copy from the preview above.")
+        # Copy instructions
+        st.caption("💡 Tip: For large datasets, use the download button. For small outputs, you can copy directly from the JSON preview above.")
+        
+        # Export options
+        with st.expander("🔧 Advanced Export Options"):
+            col_a, col_b = st.columns(2)
+            with col_a:
+                # Minified JSON option
+                minified_json = json.dumps(all_articles, ensure_ascii=False, separators=(',', ':'))
+                minified_filename = f"scopus_minified_{timestamp}.json"
+                st.download_button(
+                    label="⬇️ Download Minified JSON",
+                    data=minified_json,
+                    file_name=minified_filename,
+                    mime="application/json",
+                    use_container_width=True
+                )
+            with col_b:
+                # CSV export of unique IDs only
+                id_df = pd.DataFrame([{'unique_id': a['unique_id'], 'title': a.get('Title') or a.get('title') or 'N/A', 'source': a.get('source_file')} for a in all_articles])
+                id_csv = id_df.to_csv(index=False)
+                id_filename = f"scopus_ids_{timestamp}.csv"
+                st.download_button(
+                    label="⬇️ Download IDs Only (CSV)",
+                    data=id_csv,
+                    file_name=id_filename,
+                    mime="text/csv",
+                    use_container_width=True
+                )
     
     # Footer
     st.divider()
     st.caption(
-        "Scopus CSV to JSON Converter • "
-        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} • "
+        f"Scopus CSV to JSON Converter • "
+        f"Session: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} • "
+        f"Working dir: {os.getcwd()} • "
         "All articles assigned UUID v4 unique identifiers"
     )
+    
+    # Hidden debug: log key metrics to console for server deployments
+    if st.session_state.get('_logged', False) is False:
+        print(f"[ScopusConverter] Initialized at {datetime.now().isoformat()}")
+        st.session_state['_logged'] = True
 
 
 if __name__ == "__main__":
