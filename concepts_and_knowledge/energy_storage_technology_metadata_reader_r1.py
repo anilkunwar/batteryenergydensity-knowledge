@@ -1,13 +1,14 @@
 import streamlit as st
 import os
 import json
+import re
 import pandas as pd
 from pathlib import Path
 import math
 
 # ─── Page Config ───
 st.set_page_config(
-    page_title="JSON Metadata Explorer",
+    page_title="JSON Metadata Explorer v2",
     page_icon="📚",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -17,6 +18,50 @@ st.set_page_config(
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_METADATA_DIR = os.path.join(SCRIPT_DIR, "json_metadatabase")
 os.makedirs(JSON_METADATA_DIR, exist_ok=True)
+
+# ─── Robust JSON Loader ───
+def robust_load_file(filepath: Path):
+    """Try multiple strategies to load a file that claims to be JSON."""
+    text = filepath.read_text(encoding="utf-8-sig")  # utf-8-sig strips BOM
+
+    # Strategy 1: Standard JSON (Python allows NaN by default)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 2: Sanitized JSON (replace bare NaN/Infinity with null)
+    sanitized = re.sub(r'NaN', 'null', text)
+    sanitized = re.sub(r'Infinity', 'null', sanitized)
+    sanitized = re.sub(r'-Infinity', 'null', sanitized)
+    try:
+        return json.loads(sanitized)
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 3: JSONL (one JSON object per line)
+    records = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass
+    if records:
+        return records
+
+    # Strategy 4: Maybe it's actually CSV
+    try:
+        df = pd.read_csv(filepath)
+        return df.to_dict(orient="records")
+    except Exception:
+        pass
+
+    # All strategies failed — return preview info for diagnosis
+    preview = text[:300]
+    raise ValueError(f"Could not parse {filepath.name}. Preview: {preview[:200]}...")
 
 # ─── Caching ───
 @st.cache_data(show_spinner=False)
@@ -28,8 +73,7 @@ def load_all_json_files(directory):
     loaded = []
     for fp in files:
         try:
-            with open(fp, "r", encoding="utf-8") as f:
-                data = json.load(f)          # Python allows NaN by default
+            data = robust_load_file(fp)
             if isinstance(data, list):
                 loaded.append((str(fp.name), data))
             elif isinstance(data, dict):
@@ -38,6 +82,12 @@ def load_all_json_files(directory):
                 loaded.append((str(fp.name), []))
         except Exception as e:
             st.error(f"Error loading {fp.name}: {e}")
+            # Show hex preview for diagnosis
+            try:
+                raw = fp.read_bytes()[:300]
+                st.code("File preview (first 300 bytes hex):\n" + raw.hex(), language="text")
+            except Exception:
+                pass
     return loaded
 
 @st.cache_data(show_spinner=False)
