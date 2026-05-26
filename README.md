@@ -7,7 +7,7 @@
 [![integratedllmgraphbattery](https://img.shields.io/badge/batterygraphllm3-streamlit-red)](https://concepts-in-energy-density-of-batteries3.streamlit.app/) (LLM+DGL, performs better in python 3.11 as compared to other versions, unresolved errors as DGL is not cloud-friendly )
 
 # BatteryEnergyDensity-Knowledge with  LLMs (> 5B parameters) and Concept Graph
-[![integratedllmgraphbattery](https://img.shields.io/badge/batterygraphllm4-streamlit-red)](https://concepts-in-energy-density-of-batteries4.streamlit.app/) 
+[![integratedllmgraphbattery](https://img.shields.io/badge/batterygraphllm4-streamlit-yellow)](https://concepts-in-energy-density-of-batteries4.streamlit.app/) 
 
 
 
