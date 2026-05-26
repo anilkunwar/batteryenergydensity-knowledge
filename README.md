@@ -7,6 +7,7 @@
 [![integratedllmgraphbattery](https://img.shields.io/badge/batterygraphllm3-streamlit-red)](https://concepts-in-energy-density-of-batteries3.streamlit.app/) (LLM+DGL, performs better in python 3.11 as compared to other versions, unresolved errors as DGL is not cloud-friendly )
 
 # BatteryEnergyDensity-Knowledge with  LLMs (> 5B parameters) and Concept Graph
+
 [![integratedllmgraphbattery](https://img.shields.io/badge/batterygraphllm4-streamlit-yellow)](https://concepts-in-energy-density-of-batteries4.streamlit.app/) 
 
 
@@ -25,6 +26,10 @@
 [![integratedllmgraphbattery](https://img.shields.io/badge/csvtojson-v5-green)](https://metadata-csv-to-json5.streamlit.app/) (M  csv files with multiple metadata entity n1, n2, ..., nM, and conversion to single json file with unique id for each metadata entity)
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/csvtojson-v6-green)](https://metadata-csv-to-json6.streamlit.app/) (v5 with csv search function, M  csv files with multiple metadata entity n1, n2, ..., nM, and conversion to single json file with unique id for each metadata entity)
+
+# JSON database Reader
+
+[![integratedllmgraphbattery](https://img.shields.io/badge/jsonreader1-streamlit-yellow)](https://energy-storage-technology-metadatareader1.streamlit.app/) 
 
 
 
