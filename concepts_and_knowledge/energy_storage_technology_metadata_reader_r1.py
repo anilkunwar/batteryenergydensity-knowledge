@@ -2,13 +2,13 @@ import streamlit as st
 import os
 import json
 import re
+import math
 import pandas as pd
 from pathlib import Path
-import math
 
 # ─── Page Config ───
 st.set_page_config(
-    page_title="JSON Metadata Explorer v3",
+    page_title="JSON Metadata Explorer v4",
     page_icon="📚",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -106,13 +106,15 @@ def build_master_dataframe(file_records):
         for rec in records:
             if not isinstance(rec, dict):
                 continue
-            rec = dict(rec)
+            rec = dict(rec)          # shallow copy
             rec["_source_file"] = fname
             rows.append(rec)
     if not rows:
         return pd.DataFrame()
     df = pd.json_normalize(rows)
+    # Replace literal NaN / null with pandas NA for cleaner display
     df = df.replace({float("nan"): pd.NA, None: pd.NA, "NaN": pd.NA, "": pd.NA})
+    # Ensure Year is numeric where possible
     if "Year" in df.columns:
         df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
     return df
@@ -147,6 +149,7 @@ tab_dashboard, tab_table, tab_detail, tab_export = st.tabs([
     "📊 Dashboard", "📋 Table View", "📄 Paper Details", "💾 Export"
 ])
 
+# ─── Pre-filtered DataFrame ───
 if selected_files:
     df_filtered = df[df["_source_file"].isin(selected_files)].copy()
 else:
@@ -208,6 +211,7 @@ with tab_table:
     st.header("Search & Filter")
     search_text = st.text_input("Keyword search (searches Title, Abstract, Authors, Keywords)", "")
 
+    # Column filters
     filter_cols = st.columns(3)
     with filter_cols[0]:
         if "Year" in df_filtered.columns:
