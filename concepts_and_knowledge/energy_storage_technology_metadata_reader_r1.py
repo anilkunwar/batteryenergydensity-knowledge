@@ -8,7 +8,7 @@ import math
 
 # ─── Page Config ───
 st.set_page_config(
-    page_title="JSON Metadata Explorer v2",
+    page_title="JSON Metadata Explorer v3",
     page_icon="📚",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -24,6 +24,9 @@ def robust_load_file(filepath: Path):
     """Try multiple strategies to load a file that claims to be JSON."""
     text = filepath.read_text(encoding="utf-8-sig")  # utf-8-sig strips BOM
 
+    if not text.strip():
+        raise ValueError(f"File is empty (0 bytes or only whitespace).")
+
     # Strategy 1: Standard JSON (Python allows NaN by default)
     try:
         return json.loads(text)
@@ -34,6 +37,8 @@ def robust_load_file(filepath: Path):
     sanitized = re.sub(r'NaN', 'null', text)
     sanitized = re.sub(r'Infinity', 'null', sanitized)
     sanitized = re.sub(r'-Infinity', 'null', sanitized)
+    # Also fix trailing comma before closing bracket/brace
+    sanitized = re.sub(r',(\s*[}\]])', r'', sanitized)
     try:
         return json.loads(sanitized)
     except json.JSONDecodeError:
@@ -59,9 +64,9 @@ def robust_load_file(filepath: Path):
     except Exception:
         pass
 
-    # All strategies failed — return preview info for diagnosis
+    # All strategies failed — show diagnosis
     preview = text[:300]
-    raise ValueError(f"Could not parse {filepath.name}. Preview: {preview[:200]}...")
+    raise ValueError(f"Could not parse {filepath.name}. First 200 chars: {preview[:200]}...")
 
 # ─── Caching ───
 @st.cache_data(show_spinner=False)
@@ -81,11 +86,14 @@ def load_all_json_files(directory):
             else:
                 loaded.append((str(fp.name), []))
         except Exception as e:
-            st.error(f"Error loading {fp.name}: {e}")
+            st.error(f"❌ Error loading `{fp.name}`: {e}")
             # Show hex preview for diagnosis
             try:
-                raw = fp.read_bytes()[:300]
-                st.code("File preview (first 300 bytes hex):\n" + raw.hex(), language="text")
+                raw_bytes = fp.read_bytes()[:300]
+                hex_str = raw_bytes.hex()
+                # Format as hex pairs
+                formatted = ' '.join(hex_str[i:i+2] for i in range(0, len(hex_str), 2))
+                st.code(f"Hex preview (first {len(raw_bytes)} bytes):\n{formatted}", language="text")
             except Exception:
                 pass
     return loaded
@@ -98,15 +106,13 @@ def build_master_dataframe(file_records):
         for rec in records:
             if not isinstance(rec, dict):
                 continue
-            rec = dict(rec)          # shallow copy
+            rec = dict(rec)
             rec["_source_file"] = fname
             rows.append(rec)
     if not rows:
         return pd.DataFrame()
     df = pd.json_normalize(rows)
-    # Replace literal NaN / null with pandas NA for cleaner display
     df = df.replace({float("nan"): pd.NA, None: pd.NA, "NaN": pd.NA, "": pd.NA})
-    # Ensure Year is numeric where possible
     if "Year" in df.columns:
         df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
     return df
@@ -125,10 +131,15 @@ if not file_records:
     st.info("Place JSON metadata files in the `json_metadatabase/` folder next to this script.")
     st.stop()
 
-st.sidebar.success(f"Loaded {len(file_records)} file(s)  •  {len(df)} record(s)")
+successful_files = [f for f in file_records if f[1]]
+if not successful_files:
+    st.sidebar.error("Files found but none could be parsed.")
+    st.error("All JSON files failed to load. Check the error messages above. Common causes:\n1. File is empty\n2. File has raw `NaN` values without quotes\n3. File is truncated (missing closing `]`)\n4. File is actually CSV with `.json` extension")
+    st.stop()
 
-# File selector
-file_names = [f[0] for f in file_records]
+st.sidebar.success(f"Loaded {len(successful_files)} file(s)  •  {len(df)} record(s)")
+
+file_names = [f[0] for f in successful_files]
 selected_files = st.sidebar.multiselect("Filter by source file", file_names, default=file_names)
 
 # ─── Main Tabs ───
@@ -136,7 +147,6 @@ tab_dashboard, tab_table, tab_detail, tab_export = st.tabs([
     "📊 Dashboard", "📋 Table View", "📄 Paper Details", "💾 Export"
 ])
 
-# ─── Pre-filtered DataFrame ───
 if selected_files:
     df_filtered = df[df["_source_file"].isin(selected_files)].copy()
 else:
@@ -198,15 +208,11 @@ with tab_table:
     st.header("Search & Filter")
     search_text = st.text_input("Keyword search (searches Title, Abstract, Authors, Keywords)", "")
 
-    # Column filters
     filter_cols = st.columns(3)
     with filter_cols[0]:
         if "Year" in df_filtered.columns:
             yrs = sorted(df_filtered["Year"].dropna().unique())
-            if yrs:
-                sel_years = st.multiselect("Year", yrs)
-            else:
-                sel_years = []
+            sel_years = st.multiselect("Year", yrs) if yrs else []
         else:
             sel_years = []
     with filter_cols[1]:
@@ -222,7 +228,6 @@ with tab_table:
         else:
             sel_sources = []
 
-    # Apply filters
     dff = df_filtered.copy()
     if search_text:
         cols_to_search = [c for c in ["Title", "Abstract", "Authors", "Author Keywords", "Index Keywords"] if c in dff.columns]
@@ -237,7 +242,6 @@ with tab_table:
         dff = dff[dff["Source title"].isin(sel_sources)]
 
     st.write(f"Showing **{len(dff)}** record(s)")
-    # Choose display columns
     preferred = ["Title", "Authors", "Year", "Source title", "Document Type", "DOI", "Cited by"]
     display_cols = [c for c in preferred if c in dff.columns]
     if not display_cols:
@@ -250,13 +254,12 @@ with tab_detail:
     if len(dff) == 0:
         st.warning("No records match the current filters.")
     else:
-        # Build a selector based on title + authors
         label_col = []
         for _, row in dff.iterrows():
             title = row.get("Title", "Untitled")
             authors = row.get("Authors", "")
             year = row.get("Year", "")
-            label = f"[{year}] {title[:80]}{'…' if len(str(title))>80 else ''}  —  {authors[:60]}{'…' if len(str(authors))>60 else ''}"
+            label = f"[{year}] {str(title)[:80]}{'…' if len(str(title))>80 else ''}  —  {str(authors)[:60]}{'…' if len(str(authors))>60 else ''}"
             label_col.append(label)
         dff = dff.copy()
         dff["__label"] = label_col
@@ -274,7 +277,7 @@ with tab_detail:
         if "DOI" in selected_row and pd.notna(selected_row["DOI"]):
             st.markdown(f"**DOI:** [{selected_row['DOI']}](https://doi.org/{selected_row['DOI']})")
         if "Link" in selected_row and pd.notna(selected_row["Link"]):
-            st.markdown(f"**Link:** [{selected_row['Link'][:60]}…]({selected_row['Link']})")
+            st.markdown(f"**Link:** [{str(selected_row['Link'])[:60]}…]({selected_row['Link']})")
         if "Source title" in selected_row and pd.notna(selected_row["Source title"]):
             st.markdown(f"**Source:** {selected_row['Source title']}")
 
@@ -288,7 +291,6 @@ with tab_detail:
                 st.markdown(f"**Index Keywords:** {selected_row['Index Keywords']}")
 
         with st.expander("Full Metadata Record"):
-            # Drop internal helper columns
             full = selected_row.drop(labels=["__label", "_source_file"], errors="ignore")
             st.json(full.to_dict())
 
@@ -300,7 +302,6 @@ with tab_export:
     else:
         export_cols = [c for c in dff.columns if c not in {"__label"}]
         export_df = dff[export_cols].copy()
-        # Replace pd.NA with None for clean JSON
         export_json = export_df.to_json(orient="records", indent=2, force_ascii=False)
         export_csv = export_df.to_csv(index=False)
         c1, c2 = st.columns(2)
