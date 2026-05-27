@@ -27,6 +27,8 @@
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/csvtojson-v6-green)](https://metadata-csv-to-json6.streamlit.app/) (v5 with csv search function, M  csv files with multiple metadata entity n1, n2, ..., nM, and conversion to single json file with unique id for each metadata entity)
 
+[![integratedllmgraphbattery](https://img.shields.io/badge/csvtojson-v7-violet)](https://metadata-csv-to-json7.streamlit.app/) (resolves the readability error for json produced by v6, empty fields are described as NULL instead of NaN,  with csv search function, M  csv files with multiple metadata entity n1, n2, ..., nM, and conversion to single json file with unique id for each metadata entity)
+
 # JSON database Reader
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/jsonreader1-streamlit-yellow)](https://energy-storage-technology-metadatareader1.streamlit.app/) 
