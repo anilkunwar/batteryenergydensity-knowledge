@@ -36,7 +36,7 @@
 
 # Concept graph from data in JSON format
 
-[![integratedllmgraphbattery](https://img.shields.io/badge/conceptgraphjson1-streamlit-purple)](https://lithium-ion-battery-concept-graph1.streamlit.app/)  (Concept graph built from metadata present in JSON format)
+[![integratedllmgraphbattery](https://img.shields.io/badge/conceptgraphjson1-streamlit-blue)](https://lithium-ion-battery-concept-graph1.streamlit.app/)  (Concept graph built from metadata present in JSON format)
 
 
 
