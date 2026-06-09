@@ -38,7 +38,9 @@
 
 # Concept graph from data in JSON format (tiny datasets for tutorial purpose)
 
-[![integratedllmgraphbattery](https://img.shields.io/badge/conceptgraphjson0-streamlit-orange)](https://rechargeable-battery-concept-graph1.streamlit.app/)  (Concept graph built from metadata present in JSON format)
+[![integratedllmgraphbattery](https://img.shields.io/badge/batteryconceptgraphjson1-streamlit-orange)](https://rechargeable-battery-concept-graph1.streamlit.app/)  (Concept graph built from metadata present in JSON format, Topical Areas of Focus: Zinc-Air Batteries (ZABs), Sodium-Ion Batteries (SIBs), Seawater Batteries, and Electrocatalysis)
+
+[![integratedllmgraphbattery](https://img.shields.io/badge/batteryconceptgraphjson2-streamlit-orange)](https://rechargeable-battery-concept-graph2.streamlit.app/)  (Concept graph built from metadata present in JSON format, Topical Area of Focus: Lithium Ion Batteries Related Terms)
 
 # Concept graph from data in JSON format (medium to large datasets)
 
