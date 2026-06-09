@@ -36,8 +36,11 @@
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/jsonreader1-streamlit-yellow)](https://energy-storage-technology-metadatareader1.streamlit.app/) 
 
+# Concept graph from data in JSON format (tiny datasets for tutorial purpose)
 
-# Concept graph from data in JSON format
+[![integratedllmgraphbattery](https://img.shields.io/badge/conceptgraphjson0-streamlit-orange)](https://rechargeable-battery-concept-graph1.streamlit.app/)  (Concept graph built from metadata present in JSON format)
+
+# Concept graph from data in JSON format (medium to large datasets)
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/conceptgraphjson1-streamlit-blue)](https://lithium-ion-battery-concept-graph1.streamlit.app/)  (Concept graph built from metadata present in JSON format)
 
