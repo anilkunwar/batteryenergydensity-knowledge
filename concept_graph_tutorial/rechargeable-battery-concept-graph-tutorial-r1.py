@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-RechargeableBatteries-ConceptGraph: Energy Density Concept Graph Builder for Lithium-Ion Batteries
+RechargeableBatteries-ConceptGraph: Advanced Battery & Electrocatalysis Concept Graph Builder
 ==================================================================================
-Large-corpus concept graph extraction (3000+ abstracts) from JSON metadata.
-No seed injection needed — robust statistical methods for high-volume data.
+Concept graph extraction for Zinc-Air Batteries (ZABs), Sodium-Ion Batteries (SIBs),
+Seawater Batteries, and Electrocatalysis (HER/OER/ORR) research from JSON metadata.
+Optimized for small-to-large corpora (9-3000+ abstracts) with robust statistical methods.
 
 Features:
 - Robust JSON/JSONL/CSV loading with BOM handling and error recovery
-- Large-corpus optimized concept extraction (TF-IDF, semantic clustering, PageRank)
-- Energy-density focused domain filtering (Wh/kg, mAh/g, cathode, anode, electrolyte, etc.)
+- Domain-optimized concept extraction (TF-IDF, semantic clustering, PageRank)
+- Advanced battery & electrocatalysis filtering (ZAB, SIB, HER, OER, ORR, MOF, MXene, etc.)
+- Unicode unit handling for Scopus exports (mAh∙g−1 → mAh/g)
 - Interactive PyVis/Plotly 2D/3D visualizations with 50+ colormaps
 - Statistical validation: modularity, silhouette, centrality, bootstrap CIs
 - GNN-powered (GraphSAGE) research direction scoring with PyTorch
@@ -20,7 +22,7 @@ DEPLOYMENT:
 pip install streamlit torch transformers sentence-transformers networkx scikit-learn
 pip install pyvis plotly pandas numpy kaleido matplotlib scipy seaborn
 
-Run: streamlit run lib_concept_graph.py
+Run: streamlit run lib_concept_graph_updated.py
 
 Place JSON files in ./json_metadatabase/ folder next to this script.
 """
@@ -78,7 +80,7 @@ warnings.filterwarnings('ignore')
 # PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="RechargeableBatteries-ConceptGraph: Energy Density Explorer",
+    page_title="RechargeableBatteries-ConceptGraph: Advanced Battery & Electrocatalysis Explorer",
     page_icon="🔋",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -205,123 +207,93 @@ def build_master_dataframe(file_records):
     return df
 
 # ==========================================
-# LITHIUM-ION BATTERY DOMAIN CONFIGURATION
+# ADVANCED BATTERIES & ELECTROCATALYSIS DOMAIN CONFIGURATION
 # ==========================================
-ENERGY_DENSITY_KEYWORDS = [
-    "energy density", "power density", "specific energy", "gravimetric energy",
-    "volumetric energy", "wh/kg", "wh/l", "mah/g", "mah/cm3", "capacity retention",
-    "coulombic efficiency", "areal capacity", "mass loading", "electrode density",
-    "tap density", "packing density", "energy efficiency", "round-trip efficiency",
-    "thermal runaway", "heat generation", "adiabatic temperature", "c-rate", "discharge rate",
-    "charge rate", "fast charging", "high power", "high energy", "cell design",
-    "electrode thickness", "electrode porosity", "binder content", "conductive additive",
-    "active material ratio", "n/p ratio", "anode/cathode ratio", "cell voltage",
-    "open circuit voltage", "average voltage", "voltage plateau", "polarization",
-    "internal resistance", "impedance", "ionic conductivity", "electronic conductivity",
-    "diffusion coefficient", "charge transfer resistance", "solid electrolyte interphase",
-    "sei", "cei", "electrolyte decomposition", "gassing", "swelling", "calendar life",
-    "cycle life", "degradation mechanism", "capacity fade", "impedance growth"
+PERFORMANCE_METRICS_KEYWORDS = [
+    "energy density", "power density", "specific energy", "wh/kg", "wh/l", "mah/g", "mah/cm2",
+    "overpotential", "half-wave potential", "current density", "cell voltage", "open circuit voltage",
+    "cycling stability", "durability", "cycle life", "capacity retention", "coulombic efficiency",
+    "conversion efficiency", "solar to hydrogen", "corrosion resistance", "stability"
 ]
 
-CATHODE_MATERIALS = [
-    "ncm", "nmc", "lco", "lmo", "lfp", "lmno", "lnmo", "nca", "lno",
-    "liNiMnCo", "liNiCoAl", "liFePo4", "liMn2O4", "liCoO2", "liNiO2",
-    "high nickel", "low cobalt", "cobalt free", "single crystal", "polycrystalline",
-    "core shell", "concentration gradient", "full concentration gradient",
-    "layered oxide", "spinel", "olivine", "rock salt", "disordered rocksalt"
+BATTERY_ELECTRODE_MATERIALS = [
+    "sn", "tin", "sb", "antimony", "mof", "metal-organic framework", "terephthalic acid",
+    "ti3c2tx", "mxene", "g-c3n4", "carbon nitride", "negatrode", "positrode",
+    "zn", "zinc", "air cathode", "air-cathode", "nis", "cos2", "nd", "neodymium", 
+    "mo2n", "cop", "ceo2", "cnt", "carbon nanotube", "cuo", "co-cn", "fe-se-c", 
+    "nio", "iro2", "mo4o11", "co-ni", "single atom", "single-atom", "fe-n-c", 
+    "n-doped carbon", "zif67", "nc", "nc-cnt"
 ]
 
-ANODE_MATERIALS = [
-    "graphite", "soft carbon", "hard carbon", "silicon", "silicon oxide",
-    "siOx", "tin", "germanium", "lithium metal", "li metal", "lithium foil",
-    "lithium alloy", "lithium titanate", "lto", "titanium oxide", "niobium oxide",
-    "conversion anode", "alloying anode", "intercalation anode", "prelithiation",
-    "artificial sei", "solid electrolyte", "inorganic solid electrolyte",
-    "sulfide electrolyte", "oxide electrolyte", "halide electrolyte",
-    "polymer electrolyte", "gel polymer", "composite electrolyte", "hybrid electrolyte"
+REACTIONS_KEYWORDS = [
+    "her", "oer", "orr", "water splitting", "seawater splitting", "overall water splitting",
+    "hydrogen evolution", "oxygen evolution", "oxygen reduction", "electrocatalysis", 
+    "electrolysis", "redox"
+]
+
+STRUCTURES_KEYWORDS = [
+    "heterostructure", "heterointerface", "bilayer", "nanosheet", "nanowire", "nanocube", 
+    "nanofiber", "nanofoam", "nano foam", "hollow carbon", "hierarchical", "core-shell",
+    "single-atom catalyst", "sa catalyst", "bifunctional", "trifunctional"
 ]
 
 ELECTROLYTE_KEYWORDS = [
-    "liquid electrolyte", "solid electrolyte", "solid state", "polymer electrolyte",
-    "gel electrolyte", "ionic liquid", "superconcentrated", "localized high concentration",
-    "fluorinated", "sulfone", "carbonate", "ether", "ester", "additive", "film former",
-    "vc", "vec", "fec", "dfec", "lipo2f2", "liodfb", "libob", "litfsi", "lifsi",
-    "dual salt", "solvent-in-salt", "water-in-salt", "aqueous", "non-aqueous",
-    "propylene carbonate", "ethylene carbonate", "dimethyl carbonate", "ethyl methyl carbonate",
-    "diethyl carbonate", "linear carbonate", "cyclic carbonate", "fluoroethylene carbonate"
+    "alkaline", "seawater", "freshwater", "aqueous", "non-aqueous", "liquid electrolyte",
+    "solid electrolyte", "zinc-air", "zab", "sib", "lib", "pouch cell", "pouch battery"
 ]
 
-CELL_DESIGN = [
-    "cylindrical cell", "prismatic cell", "pouch cell", "18650", "21700", "4680",
-    "cell format", "cell geometry", "jelly roll", "stacked electrode", "tab design",
-    "current collector", "al foil", "cu foil", "porous current collector",
-    "3d current collector", "current collector coating", "cell casing", "vent design",
-    "thermal management", "cooling plate", "heat pipe", "phase change material",
-    "battery pack", "module design", "cell-to-pack", "cell-to-chassis", "ctp", "ctc"
-]
+# Combine them all for the validation function
+ALL_DOMAIN_KEYWORDS = (PERFORMANCE_METRICS_KEYWORDS + BATTERY_ELECTRODE_MATERIALS + 
+                       REACTIONS_KEYWORDS + STRUCTURES_KEYWORDS + ELECTROLYTE_KEYWORDS)
 
-MANUFACTURING = [
-    "calendering", "slot die coating", "doctor blade", "spray coating", "dry electrode",
-    "solvent free", "binder free", "electrodeposition", "3d printing", "additive manufacturing",
-    "electrode slurry", "mixing", "dispersion", "rheology", "viscosity", "solids loading",
-    "drying", "solvent evaporation", "nmp", "pvdf", "cmc", "sbr", "paa", "alginate",
-    "foil thickness", "electrode loading", "areal loading", "coating uniformity",
-    "electrode calendering", "roll pressing", "electrode density control"
-]
+# Keep old variable names pointing to new lists so the rest of the script doesn't break
+ENERGY_DENSITY_KEYWORDS = PERFORMANCE_METRICS_KEYWORDS
+CATHODE_MATERIALS = BATTERY_ELECTRODE_MATERIALS
+ANODE_MATERIALS = BATTERY_ELECTRODE_MATERIALS
 
-SAFETY_DEGRADATION = [
-    "thermal stability", "overcharge", "overdischarge", "short circuit", "internal short",
-    "dendrite", "lithium plating", "lithium whisker", "dead lithium", "gas evolution",
-    "venting", "fire", "explosion", "safety vent", "cid", "ptc", "fuse", "bms",
-    "state of charge", "state of health", "soc", "soh", "state estimation",
-    "electrochemical impedance spectroscopy", "eis", "differential capacity", "dQ/dV",
-    "differential voltage", "dV/dQ", "operando", "in-situ", "x-ray tomography",
-    "neutron imaging", "cryo-em", "tem", "stem", "electron microscopy"
-]
-
-ALL_DOMAIN_KEYWORDS = (ENERGY_DENSITY_KEYWORDS + CATHODE_MATERIALS + ANODE_MATERIALS + 
-                       ELECTROLYTE_KEYWORDS + CELL_DESIGN + MANUFACTURING + SAFETY_DEGRADATION)
-
+# Robust patterns that handle Scopus's weird Unicode minus signs (−) and dots (∙)
 BATTERY_PATTERNS = [
-    r'\b(?:\d+(?:\.\d+)?\s*(?:wh/kg|wh kg-1|wh kg⁻¹|wh l-1|wh l⁻¹|mah/g|mah g-1|mah g⁻¹|mah/cm³|mah cm-3))\b',
-    r'\b(?:Li(?:[A-Z][a-z]?\d*)+(?:O\d*)?)\b',
-    r'\b(?:NCM|NMC|LCO|LMO|LFP|LMNO|LNMO|NCA|LNO|LTO)\d*(?:\d+(?:\.\d+)?)?\b',
-    r'\b(?:18650|21700|4680|26650|14500)\b',
-    r'\b(?:solid.?state|all.?solid.?state)\b',
-    r'\b(?:fast.?charge|quick.?charge|rapid.?charge)\b',
-    r'\b(?:high.?energy|high.?power|long.?life)\b',
-    r'\b(?:Si(?:Ox?)?|SiO\d*|silicon.?oxide)\b',
-    r'\b(?:prelithiat(?:ed|ion))\b',
-    r'\b(?:3D.?print(?:ed|ing)|additive.?manufactur(?:ed|ing))\b'
+    # Capacity and Energy Density (robust to unicode minus/superscripts)
+    r'\d+(?:\.\d+)?\s*mah.{0,3}?g.{0,3}?1',
+    r'\d+(?:\.\d+)?\s*wh.{0,3}?kg.{0,3}?1',
+    r'\d+(?:\.\d+)?\s*mah.{0,3}?cm.{0,3}?2',
+    # Power Density and Current Density
+    r'\d+(?:\.\d+)?\s*mw.{0,3}?cm.{0,3}?2',
+    r'\d+(?:\.\d+)?\s*ma.{0,3}?cm.{0,3}?2',
+    r'\d+(?:\.\d+)?\s*a.{0,3}?cm.{0,3}?2',
+    # Overpotential, Voltage, and Potential
+    r'\d+(?:\.\d+)?\s*(?:mv|v)',
+    r'(?:overpotential|half-wave potential|cell voltage|open circuit voltage|operating voltage)',
+    # Specific Chemical Formulas & Materials from your JSON
+    r'(?:Ti3C2Tx|g-C3N4|NiS|CoS2|Mo2N|CoP|CeO2|CuO|Fe-Se-C|NiO|IrO2|Mo4O11|ZIF67|Co-CN|NC-CNT)',
+    # Battery Types & Configurations
+    r'(?:zinc-air|zab|sodium-ion|sib|lithium-ion|lib|zn-seawater|seawater battery|pouch cell|pouch battery|half-pouch|full-pouch)',
+    # Electrocatalysis & Reactions
+    r'(?:her|oer|orr|water splitting|seawater splitting|overall water splitting|hydrogen evolution|oxygen evolution|oxygen reduction)',
+    # Structural Keywords
+    r'(?:single-atom|single atom|sa catalyst|mof|metal-organic framework|heterostructure|heterointerface|nanosheet|nanowire|nanocube|bilayer|hollow carbon|n-doped|nitrogen-doped|nanofoam|nano foam)',
+    # Electrode roles
+    r'(?:negatrode|positrode|air cathode|air-cathode|anode|cathode|electrocatalyst|bifunctional catalyst|trifunctional electrocatalyst)'
 ]
 
 BATTERY_CATEGORY_MAPPING = {
-    r'ncm\d*|nmc\d*|li(?:ni)?mn?co|high.?nickel|layered.?oxide': 'cathode_material',
-    r'lfp|liFePo4|olivine|phosphate': 'cathode_material',
-    r'lco|liCoO2|cobalt.?oxide': 'cathode_material',
-    r'nca|liNiCoAl|aluminum.?doped': 'cathode_material',
-    r'graphite|soft.?carbon|hard.?carbon|carbon.?anode': 'anode_material',
-    r'silicon|siOx|siO\d*|tin|germanium|alloy.?anode|conversion.?anode': 'anode_material',
-    r'li.?metal|lithium.?foil|lithium.?anode': 'anode_material',
-    r'lto|liTi|titanate|niobium.?oxide': 'anode_material',
-    r'liquid.?electrolyte|carbonate|ether|ester|ionic.?liquid': 'liquid_electrolyte',
-    r'solid.?electrolyte|sulfide|oxide|halide|garnet|nasicon|lispo|llzo|lagp': 'solid_electrolyte',
-    r'polymer.?electrolyte|gel|peo|pan|pmma|pvdf.?hf[pt]': 'polymer_electrolyte',
-    r'wh/kg|wh/l|mah/g|specific.?energy|gravimetric|volumetric': 'energy_density_metric',
-    r'fast.?charge|quick.?charge|c-rate|charge.?rate|discharge.?rate': 'rate_capability',
-    r'cycle.?life|calendar.?life|capacity.?retention|capacity.?fade|degradation': 'lifetime',
-    r'thermal.?runaway|safety|fire|explosion|venting|dendrite|short.?circuit': 'safety',
-    r'18650|21700|4680|pouch|prismatic|cylindrical|cell.?format': 'cell_design',
-    r'calendering|coating|slot.?die|dry.?electrode|3d.?print|additive.?manuf': 'manufacturing',
-    r'sei|cei|interphase|interface|passivation|film.?former': 'interphase',
-    r'conductive.?additive|carbon.?black|cnt|graphene|cnt|super.?p|acetylene': 'conductive_network',
-    r'binder|pvdf|cmc|sbr|paa|alginate|pva|nbr': 'binder_system',
-    r'current.?collector|al.?foil|cu.?foil|3d.?current.?collector|porous.?cc': 'current_collector',
-    r'bms|state.?of.?charge|state.?of.?health|soc|soh|estimation|algorithm': 'battery_management',
-    r'operando|in.?situ|ex.?situ|x.?ray|neutron|tem|stem|cryo|tomography': 'characterization',
-    r'phase.?field|molecular.?dynamics|dft|ab.?initio|machine.?learning|neural.?network|graph.?neural': 'computational_method'
+    r'zinc.?air|zab|zn.?air': 'zinc_air_battery',
+    r'sodium.?ion|sib|na.?ion': 'sodium_ion_battery',
+    r'lithium.?ion|lib|li.?ion': 'lithium_ion_battery',
+    r'zn.?seawater|seawater.?battery': 'seawater_battery',
+    r'water.?splitting|seawater.?splitting|electrolysis': 'water_splitting',
+    r'her|hydrogen.?evolution': 'hydrogen_evolution',
+    r'oer|oxygen.?evolution': 'oxygen_evolution',
+    r'orr|oxygen.?reduction': 'oxygen_reduction',
+    r'overpotential|half-wave|current.?density|power.?density': 'performance_metric',
+    r'mof|metal.?organic.?framework': 'mof_material',
+    r'single.?atom|sa.?catalyst|fe.?n.?c': 'single_atom_catalyst',
+    r'heterostructure|heterointerface|bilayer|core.?shell': 'heterostructure',
+    r'nanosheet|nanowire|nanocube|nanofiber|nanoframe|hollow': 'nanostructure',
+    r'ti3c2tx|mxene|g.?c3n4': 'mxene_carbon_nitride',
+    r'negatrode|anode': 'anode_material',
+    r'positrode|cathode|air.?cathode': 'cathode_material'
 }
-
 # ==========================================
 # UTILITY FUNCTIONS
 # ==========================================
@@ -331,7 +303,8 @@ def compute_text_hash(text: str) -> str:
 def get_adaptive_config(num_abstracts: int) -> Dict[str, Any]:
     if num_abstracts <= 50:
         return {
-            "MIN_CONCEPT_FREQ": 2, "MIN_CONCEPT_LENGTH_WORDS": 2,
+            "MIN_CONCEPT_FREQ": 1,         # Changed from 2 to 1
+            "MIN_CONCEPT_LENGTH_WORDS": 1, # Changed from 2 to 1
             "MIN_DEGREE": 1, "USE_SEMANTIC_CLUSTERING": True,
             "SIMILARITY_THRESHOLD": 0.72, "COOCCURRENCE_WEIGHT": 0.5,
             "SEMANTIC_WEIGHT": 0.5, "CLUSTER_SIMILARITY": 0.75,
@@ -353,11 +326,6 @@ def get_adaptive_config(num_abstracts: int) -> Dict[str, Any]:
             "SEMANTIC_WEIGHT": 0.1, "CLUSTER_SIMILARITY": 0.68,
             "TOP_N_CONCEPTS": 1000, "MAX_CONCEPT_LENGTH": 10
         }
-
-# ==========================================
-# DEVICE & MODEL MANAGEMENT
-# ==========================================
-@st.cache_resource(show_spinner=False)
 def load_embedding_model():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     try:
@@ -378,33 +346,44 @@ def is_valid_battery_concept(concept: str) -> bool:
                'new', 'recent', 'various', 'different', 'significant', 'important'}
     has_generic = any(term in concept_lower.split() for term in generic)
     words = concept.split()
-    if len(words) < 2 or len(words) > 10:
+    # CHANGED: Allow single-word concepts (needed for small corpora like 9 papers)
+    if len(words) < 1 or len(words) > 10:
         return False
     return (has_domain or has_pattern) and not has_generic
-
 def normalize_battery_term(concept: str) -> str:
     concept = concept.lower().strip()
-    concept = re.sub(r'\bwh\s*/\s*kg\b', 'wh/kg', concept)
-    concept = re.sub(r'\bwh\s*/\s*l\b', 'wh/l', concept)
-    concept = re.sub(r'\bmah\s*/\s*g\b', 'mah/g', concept)
-    concept = re.sub(r'\bncm\s*(\d+(?:\.\d+)?(?:\d+)?)\b', r'ncm\1', concept)
-    concept = re.sub(r'\bnmc\s*(\d+(?:\.\d+)?(?:\d+)?)\b', r'nmc\1', concept)
-    concept = re.sub(r'\blfp\b', 'lfp', concept)
-    concept = re.sub(r'\blco\b', 'lco', concept)
-    concept = re.sub(r'\bnca\b', 'nca', concept)
-    concept = re.sub(r'\b18650\b', '18650', concept)
-    concept = re.sub(r'\b21700\b', '21700', concept)
-    concept = re.sub(r'\b4680\b', '4680', concept)
-    concept = re.sub(r'\bsi\s*ox?\b', 'siox', concept)
-    concept = re.sub(r'\bsilicon\s*oxide\b', 'siox', concept)
-    concept = re.sub(r'\bfec\b', 'fec', concept)
-    concept = re.sub(r'\bvc\b', 'vc', concept)
-    concept = re.sub(r'\bsei\b', 'sei', concept)
-    concept = re.sub(r'\bsolid[-\s]?state\b', 'solid state', concept)
-    concept = re.sub(r'\bfast[-\s]?charge\b', 'fast charging', concept)
-    concept = re.sub(r'\bli[-\s]?metal\b', 'lithium metal', concept)
-    return concept
 
+    # NEW: Standardize units with weird unicode characters (bullet, minus, superscripts)
+    concept = re.sub(r'mah[\s\W]*g[\s\W]*1', 'mah/g', concept)
+    concept = re.sub(r'wh[\s\W]*kg[\s\W]*1', 'wh/kg', concept)
+    concept = re.sub(r'mah[\s\W]*cm[\s\W]*2', 'mah/cm2', concept)
+    concept = re.sub(r'mw[\s\W]*cm[\s\W]*2', 'mw/cm2', concept)
+    concept = re.sub(r'ma[\s\W]*cm[\s\W]*2', 'ma/cm2', concept)
+    concept = re.sub(r'a[\s\W]*cm[\s\W]*2', 'a/cm2', concept)
+
+    # ORIGINAL: Standardize standard units
+    concept = re.sub(r'wh\s*/\s*kg', 'wh/kg', concept)
+    concept = re.sub(r'wh\s*/\s*l', 'wh/l', concept)
+    concept = re.sub(r'mah\s*/\s*g', 'mah/g', concept)
+
+    # Keep original normalization for LiB terms (backward compatibility)
+    concept = re.sub(r'ncm\s*(\d+(?:\.\d+)?(?:\d+)?)', r'ncm', concept)
+    concept = re.sub(r'nmc\s*(\d+(?:\.\d+)?(?:\d+)?)', r'nmc', concept)
+    concept = re.sub(r'lfp', 'lfp', concept)
+    concept = re.sub(r'lco', 'lco', concept)
+    concept = re.sub(r'nca', 'nca', concept)
+    concept = re.sub(r'18650', '18650', concept)
+    concept = re.sub(r'21700', '21700', concept)
+    concept = re.sub(r'4680', '4680', concept)
+    concept = re.sub(r'si\s*ox?', 'siox', concept)
+    concept = re.sub(r'silicon\s*oxide', 'siox', concept)
+    concept = re.sub(r'fec', 'fec', concept)
+    concept = re.sub(r'vc', 'vc', concept)
+    concept = re.sub(r'sei', 'sei', concept)
+    concept = re.sub(r'solid[-\s]?state', 'solid state', concept)
+    concept = re.sub(r'fast[-\s]?charge', 'fast charging', concept)
+    concept = re.sub(r'li[-\s]?metal', 'lithium metal', concept)
+    return concept
 def extract_concepts_from_text(text: str) -> List[str]:
     concepts = set()
     text_lower = text.lower()
@@ -414,30 +393,35 @@ def extract_concepts_from_text(text: str) -> List[str]:
             concept = m.lower().strip().rstrip('.').rstrip(',')
             if len(concept.split()) >= 1 and len(concept) > 3:
                 concepts.add(concept)
-    noun_pattern = r'\b(?:[A-Z][a-z]+(?:\d+(?:\.\d+)?)?[\s\-]?){2,4}(?:electrode|electrolyte|battery|cell|anode|cathode|material|composite|coating|layer|film|particle|structure|morphology|performance|property|capacity|density|conductivity|resistance|impedance|stability|degradation|mechanism|process|method|technique|analysis|simulation|model|design|optimization)\b'
+    # NEW: Extract single-word domain keywords (ZAB, MOF, HER, OER, ORR, etc.)
+    for keyword in ALL_DOMAIN_KEYWORDS:
+        kw_lower = keyword.lower()
+        # Match as whole word, case-insensitive
+        if re.search(r'\b' + re.escape(kw_lower) + r'\b', text_lower):
+            concepts.add(kw_lower)
+    noun_pattern = r'(?:[A-Z][a-z]+(?:\d+(?:\.\d+)?)?[\s\-]?){2,4}(?:electrode|electrolyte|battery|cell|anode|cathode|material|composite|coating|layer|film|particle|structure|morphology|performance|property|capacity|density|conductivity|resistance|impedance|stability|degradation|mechanism|process|method|technique|analysis|simulation|model|design|optimization)'
     matches = re.findall(noun_pattern, text, re.I)
     for m in matches:
         concept = m.lower().strip()
         if is_valid_battery_concept(concept):
             concepts.add(concept)
     for keyword in ENERGY_DENSITY_KEYWORDS:
-        for match in re.finditer(r'\b' + re.escape(keyword) + r'\b', text_lower):
+        for match in re.finditer(r'' + re.escape(keyword) + r'', text_lower):
             start = max(0, match.start() - 100)
             end = min(len(text), match.end() + 100)
             context = text_lower[start:end]
-            context_phrases = re.findall(r'\b([a-z]+(?:\s+[a-z]+){1,3})\s+(?:of|for|in|with|using|via|through|by|to|and|or)\s+' + re.escape(keyword) + r'\b', context)
+            context_phrases = re.findall(r'([a-z]+(?:\s+[a-z]+){1,3})\s+(?:of|for|in|with|using|via|through|by|to|and|or)\s+' + re.escape(keyword) + r'', context)
             for phrase in context_phrases:
                 concept = f"{phrase.strip()} {keyword}"
                 if is_valid_battery_concept(concept):
                     concepts.add(concept)
-    material_prop_pattern = r'\b([A-Z][a-z]+(?:\d+(?:\.\d+)?)?(?:[\s\-][A-Z][a-z]?\d*)+)\b\s+(?:with|having|exhibiting|showing|demonstrating|achieving|reaching|delivering|providing|offering)\s+(?:a\s+)?([\d\.]+\s*(?:wh/kg|mah/g|wh/l|\%|percent|fold|times|x))\b'
+    material_prop_pattern = r'([A-Z][a-z]+(?:\d+(?:\.\d+)?)?(?:[\s\-][A-Z][a-z]?\d*)+)\s+(?:with|having|exhibiting|showing|demonstrating|achieving|reaching|delivering|providing|offering)\s+(?:a\s+)?([\d\.]+\s*(?:wh/kg|mah/g|wh/l|\%|percent|fold|times|x))'
     matches = re.findall(material_prop_pattern, text, re.I)
     for material, value in matches:
         concept = f"{material.lower()} {value.lower()}"
         if is_valid_battery_concept(concept):
             concepts.add(concept)
     return list(concepts)
-
 def extract_concepts_from_abstracts(df: pd.DataFrame, text_columns: List[str]) -> Tuple[List[List[str]], List[Dict]]:
     all_concepts = []
     all_metrics = []
@@ -447,24 +431,41 @@ def extract_concepts_from_abstracts(df: pd.DataFrame, text_columns: List[str]) -
             if col in row and pd.notna(row[col]):
                 combined_text += " " + str(row[col])
         metrics = {}
-        ed_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:wh/kg|wh kg-1|wh kg⁻¹)', combined_text, re.I)
+        # Energy density (with unicode handling)
+        ed_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:wh/kg|wh kg-1|wh kg⁻¹|wh[\s\W]*kg[\s\W]*1)', combined_text, re.I)
         if ed_matches: metrics['energy_density_wh_kg'] = [float(m) for m in ed_matches]
-        cap_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:mah/g|mah g-1|mah g⁻¹)', combined_text, re.I)
+        # Capacity (with unicode handling)
+        cap_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:mah/g|mah g-1|mah g⁻¹|mah[\s\W]*g[\s\W]*1)', combined_text, re.I)
         if cap_matches: metrics['capacity_mah_g'] = [float(m) for m in cap_matches]
+        # Areal capacity
+        cap_cm2_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:mah/cm²|mah cm-2|mah cm⁻²|mah[\s\W]*cm[\s\W]*2)', combined_text, re.I)
+        if cap_cm2_matches: metrics['capacity_mah_cm2'] = [float(m) for m in cap_cm2_matches]
+        # Voltage
         volt_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:V|volt)', combined_text, re.I)
         if volt_matches: metrics['voltage_v'] = [float(m) for m in volt_matches]
+        # Cycle life
         cycle_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:cycles|cycle)', combined_text, re.I)
         if cycle_matches: metrics['cycle_life'] = [float(m) for m in cycle_matches]
+        # C-rate
         crate_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:C|c-rate)', combined_text, re.I)
         if crate_matches: metrics['c_rate'] = [float(m) for m in crate_matches]
+        # Efficiency
         eff_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:%|percent)\s*(?:efficiency|retention|coulombic)', combined_text, re.I)
         if eff_matches: metrics['efficiency_pct'] = [float(m) for m in eff_matches]
+        # NEW: Power density (mW/cm²) - important for ZABs
+        pd_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:mw/cm²|mw cm-2|mw cm⁻²|mw[\s\W]*cm[\s\W]*2)', combined_text, re.I)
+        if pd_matches: metrics['power_density_mw_cm2'] = [float(m) for m in pd_matches]
+        # NEW: Current density (mA/cm², A/cm²)
+        cd_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:ma/cm²|ma cm-2|ma cm⁻²|ma[\s\W]*cm[\s\W]*2|a/cm²|a cm-2|a cm⁻²|a[\s\W]*cm[\s\W]*2)', combined_text, re.I)
+        if cd_matches: metrics['current_density_ma_cm2'] = [float(m) for m in cd_matches]
+        # NEW: Overpotential (mV, V) - important for electrocatalysis
+        op_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:mv|v)\s*(?:overpotential|overpotential|η|over-potential)', combined_text, re.I)
+        if op_matches: metrics['overpotential_mv'] = [float(m) for m in op_matches]
         all_metrics.append(metrics)
         concepts = extract_concepts_from_text(combined_text)
         normalized = [normalize_battery_term(c) for c in concepts]
         all_concepts.append(normalized)
     return all_concepts, all_metrics
-
 def cluster_similar_concepts(valid_concepts: List[str], embed_model, similarity_threshold: float = 0.75):
     if len(valid_concepts) < 5:
         return valid_concepts, {c: c for c in valid_concepts}
@@ -849,7 +850,35 @@ def get_battery_category_color(concept: str, cmap_colors: Optional[List[str]] = 
     if cmap_colors:
         return cmap_colors[hash(concept) % len(cmap_colors)]
     concept_lower = concept.lower()
-    if any(c in concept_lower for c in ['cathode', 'ncm', 'nmc', 'lfp', 'lco', 'nca', 'layered', 'olivine', 'spinel']):
+    # Advanced Batteries
+    if any(c in concept_lower for c in ['zinc-air', 'zab', 'zn-air']):
+        return "#2196F3"  # Blue
+    elif any(c in concept_lower for c in ['sodium-ion', 'sib', 'na-ion']):
+        return "#FF9800"  # Orange
+    elif any(c in concept_lower for c in ['seawater', 'zn-seawater']):
+        return "#00BCD4"  # Cyan
+    # Electrocatalysis & Reactions
+    elif any(c in concept_lower for c in ['her', 'hydrogen evolution']):
+        return "#4CAF50"  # Green
+    elif any(c in concept_lower for c in ['oer', 'oxygen evolution']):
+        return "#F44336"  # Red
+    elif any(c in concept_lower for c in ['orr', 'oxygen reduction']):
+        return "#9C27B0"  # Purple
+    elif any(c in concept_lower for c in ['water splitting', 'electrolysis']):
+        return "#FF5722"  # Deep Orange
+    # Materials
+    elif any(c in concept_lower for c in ['mof', 'metal-organic framework']):
+        return "#795548"  # Brown
+    elif any(c in concept_lower for c in ['single-atom', 'single atom', 'fe-n-c']):
+        return "#E91E63"  # Pink
+    elif any(c in concept_lower for c in ['ti3c2tx', 'mxene', 'g-c3n4']):
+        return "#3F51B5"  # Indigo
+    elif any(c in concept_lower for c in ['heterostructure', 'heterointerface', 'bilayer']):
+        return "#607D8B"  # Blue Grey
+    elif any(c in concept_lower for c in ['nanosheet', 'nanowire', 'nanocube', 'nanofiber']):
+        return "#009688"  # Teal
+    # Legacy LiB categories (keep for backward compatibility)
+    elif any(c in concept_lower for c in ['cathode', 'ncm', 'nmc', 'lfp', 'lco', 'nca', 'layered', 'olivine', 'spinel']):
         return "#E91E63"
     elif any(a in concept_lower for a in ['anode', 'graphite', 'silicon', 'siox', 'li metal', 'lithium metal', 'titanate', 'lto']):
         return "#3F51B5"
@@ -865,7 +894,6 @@ def get_battery_category_color(concept: str, cmap_colors: Optional[List[str]] = 
         return "#4CAF50"
     else:
         return "#607D8B"
-
 def render_graph_pyvis(nx_graph, concept_abstract_map, physics_enabled=True,
                         min_node_size=8, max_node_size=40, cmap_name="viridis",
                         custom_labels=None, node_label_size=12, top_n_nodes=0):
@@ -1067,7 +1095,7 @@ def render_sunburst_chart(labels, parents, values, cmap_name="viridis", label_si
         hovertemplate='<b>%{label}</b><br>Value: %{value}<br>Parent: %{parent}<extra></extra>'
     ))
     fig.update_layout(
-        title="<b>LiB Energy Density Research Domain Hierarchy</b><br><i>Size = concept frequency</i>",
+        title="<b>Advanced Battery & Electrocatalysis Research Domain Hierarchy</b><br><i>Size = concept frequency</i>",
         font=dict(size=label_size, family="Arial"),
         paper_bgcolor="white", plot_bgcolor="white",
         width=width, height=height,
@@ -1208,13 +1236,13 @@ def display_metric_dashboard(metrics: dict):
 def render_sidebar():
     with st.sidebar:
         st.header("⚙️ Configuration")
-        st.subheader("🔋 LiB Focus Areas")
-        st.markdown("- Energy density (Wh/kg, Wh/L)")
-        st.markdown("- Cathode materials (NCM, LFP, NCA)")
-        st.markdown("- Anode materials (Si, graphite, Li metal)")
-        st.markdown("- Electrolytes (liquid, solid-state)")
-        st.markdown("- Cell design & manufacturing")
-        st.markdown("- Safety & degradation")
+        st.subheader("🔋 Advanced Battery & Electrocatalysis Focus Areas")
+        st.markdown("- Energy/Power density (Wh/kg, mW/cm²)")
+        st.markdown("- Battery types (ZAB, SIB, Seawater)")
+        st.markdown("- Electrode materials (MOF, MXene, Single-atom)")
+        st.markdown("- Electrocatalysis (HER, OER, ORR)")
+        st.markdown("- Nanostructures (heterostructure, nanosheet)")
+        st.markdown("- Performance metrics (overpotential, stability)")
         st.subheader("🎨 Visualization")
         st.session_state['viz_backend'] = st.selectbox(
             "Engine:", ["PyVis (Interactive)", "Plotly 2D", "Plotly 3D", "Text Summary"], index=0
@@ -1229,7 +1257,7 @@ def render_sidebar():
         st.subheader("🔧 Graph Parameters")
         #st.session_state['min_freq'] = st.slider("Min concept frequency", 2, 20, 5)
         st.session_state['min_freq'] = st.slider("Min concept frequency", 1, 20, 1)
-        st.session_state['min_words'] = st.slider("Min words per concept", 2, 5, 2)
+        st.session_state['min_words'] = st.slider("Min words per concept", 1, 5, 1)  # Default 1
         st.session_state['sim_threshold'] = st.slider("Semantic threshold", 0.6, 0.95, 0.85, step=0.05)
         st.session_state['cooc_weight'] = st.slider("Co-occurrence weight", 0.5, 1.0, 0.9, step=0.1)
         st.session_state['sem_weight'] = st.slider("Semantic weight", 0.0, 0.5, 0.1, step=0.1)
@@ -1249,8 +1277,8 @@ def render_sidebar():
 # MAIN APPLICATION
 # ==========================================
 def main():
-    st.title("🔋 RechargeableBatteries-ConceptGraph: Energy Density Explorer")
-    st.caption("Large-corpus concept graph builder for lithium-ion battery research • 3000+ abstracts optimized")
+    st.title("🔋 RechargeableBatteries-ConceptGraph: Advanced Battery & Electrocatalysis Explorer")
+    st.caption("Concept graph builder for advanced batteries & electrocatalysis research • ZABs, SIBs, Seawater Batteries, HER/OER/ORR")
     render_sidebar()
     if "analysis_data" not in st.session_state:
         st.session_state.analysis_data = None
