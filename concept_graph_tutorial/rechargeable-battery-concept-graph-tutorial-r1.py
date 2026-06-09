@@ -1256,7 +1256,8 @@ def render_sidebar():
         st.session_state['top_n_radar'] = st.slider("Top K for radar", 5, 30, 15)
         st.subheader("🔧 Graph Parameters")
         #st.session_state['min_freq'] = st.slider("Min concept frequency", 2, 20, 5)
-        st.session_state['min_freq'] = st.slider("Min concept frequency", 1, 20, 1)
+        #st.session_state['min_freq'] = st.slider("Min concept frequency", 1, 20, 1)
+        st.session_state['min_freq'] = st.slider("Min concept frequency", 1, 20, 2)
         st.session_state['min_words'] = st.slider("Min words per concept", 1, 5, 1)  # Default 1
         st.session_state['sim_threshold'] = st.slider("Semantic threshold", 0.6, 0.95, 0.85, step=0.05)
         st.session_state['cooc_weight'] = st.slider("Co-occurrence weight", 0.5, 1.0, 0.9, step=0.1)
