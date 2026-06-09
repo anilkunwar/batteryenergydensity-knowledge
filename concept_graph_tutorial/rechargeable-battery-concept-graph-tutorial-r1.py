@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-LiB-ConceptGraph: Energy Density Concept Graph Builder for Lithium-Ion Batteries
+RechargeableBatteries-ConceptGraph: Energy Density Concept Graph Builder for Lithium-Ion Batteries
 ==================================================================================
 Large-corpus concept graph extraction (3000+ abstracts) from JSON metadata.
 No seed injection needed — robust statistical methods for high-volume data.
@@ -78,7 +78,7 @@ warnings.filterwarnings('ignore')
 # PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="LiB-ConceptGraph: Energy Density Explorer",
+    page_title="RechargeableBatteries-ConceptGraph: Energy Density Explorer",
     page_icon="🔋",
     layout="wide",
     initial_sidebar_state="expanded"
