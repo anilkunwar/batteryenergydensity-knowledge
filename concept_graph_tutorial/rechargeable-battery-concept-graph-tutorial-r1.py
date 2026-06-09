@@ -1248,7 +1248,7 @@ def render_sidebar():
 # MAIN APPLICATION
 # ==========================================
 def main():
-    st.title("🔋 LiB-ConceptGraph: Energy Density Explorer")
+    st.title("🔋 RechargeableBatteries-ConceptGraph: Energy Density Explorer")
     st.caption("Large-corpus concept graph builder for lithium-ion battery research • 3000+ abstracts optimized")
     render_sidebar()
     if "analysis_data" not in st.session_state:
