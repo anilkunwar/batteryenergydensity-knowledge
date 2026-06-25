@@ -38,15 +38,16 @@
 
 # Concept graph from data in JSON format (tiny datasets for tutorial purpose)
 
-[![integratedllmgraphbattery](https://img.shields.io/badge/batteryconceptgraphjson1-streamlit-orange)](https://rechargeable-battery-concept-graph1.streamlit.app/)  (Concept graph built from metadata present in JSON format, Topical Areas of Focus: Zinc-Air Batteries (ZABs), Sodium-Ion Batteries (SIBs), Seawater Batteries, and Electrocatalysis)
+[![integratedllmgraphbattery](https://img.shields.io/badge/batteryconceptgraphjson1-streamlit-orange)](https://rechargeable-battery-concept-graph1.streamlit.app/)  (Concept graph built from metadata present in JSON format, Topical Areas of Focus: Zinc-Air Batteries (ZABs), Sodium-Ion Batteries (SIBs), Seawater Batteries, and Electrocatalysis, With Nodes Jiggling and So Interactive Graph is Difficult to Visualize)
 
-[![integratedllmgraphbattery](https://img.shields.io/badge/batteryconceptgraphjson2-streamlit-orange)](https://rechargeable-battery-concept-graph2.streamlit.app/)  (Concept graph built from metadata present in JSON format, Topical Area of Focus: Lithium Ion Batteries Related Terms)
+[![integratedllmgraphbattery](https://img.shields.io/badge/batteryconceptgraphjson2-streamlit-orange)](https://rechargeable-battery-concept-graph2.streamlit.app/)  (Concept graph built from metadata present in JSON format, Topical Area of Focus: Lithium Ion Batteries Related Terms, Error in PyVis visualization)
+
+[![integratedllmgraphbattery](https://img.shields.io/badge/batteryconceptgraphjson3-streamlit-orange)](https://rechargeable-battery-concept-graph3.streamlit.app/)  (Concept graph built from metadata present in JSON format, Topical Area of Focus: Lithium Ion Batteries Related Terms, )
 
 # Concept graph from data in JSON format (medium to large datasets)
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/conceptgraphjson1-streamlit-blue)](https://lithium-ion-battery-concept-graph1.streamlit.app/)  (Concept graph built from metadata present in JSON format)
 
-[![integratedllmgraphbattery](https://img.shields.io/badge/conceptgraphjson1-streamlit-blue)](https://lithium-ion-battery-concept-graph2.streamlit.app/)  (Concept graph built from metadata present in JSON format)
 
 
 
