@@ -36,7 +36,7 @@
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/jsonreader1-streamlit-yellow)](https://energy-storage-technology-metadatareader1.streamlit.app/) 
 
-# Concept graph from data in JSON format (tiny datasets for tutorial purpose)
+# Concept graph from data in JSON format (tiny datasets for tutorial purpose, and more generic to rechargeable batteries)
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/batteryconceptgraphjson1-streamlit-orange)](https://rechargeable-battery-concept-graph1.streamlit.app/)  (Concept graph built from metadata present in JSON format, Topical Areas of Focus: Zinc-Air Batteries (ZABs), Sodium-Ion Batteries (SIBs), Seawater Batteries, and Electrocatalysis, With Nodes Jiggling and So Interactive Graph is Difficult to Visualize)
 
@@ -47,6 +47,12 @@
 # Concept graph from data in JSON format (medium to large datasets)
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/conceptgraphjson1-streamlit-blue)](https://lithium-ion-battery-concept-graph1.streamlit.app/)  (Concept graph built from metadata present in JSON format)
+
+[![integratedllmgraphbattery](https://img.shields.io/badge/conceptgraphjson1-streamlit-blue)](https://lithium-ion-battery-concept-graph2.streamlit.app/)  (Concept graph built from metadata present in JSON format, Different keyterms than V1 and so Concept Graph is not the same, Deterministic Layout and More damping for Interactive Visualization)
+
+[![integratedllmgraphbattery](https://img.shields.io/badge/conceptgraphjson3-streamlit-blue)](https://lithium-ion-battery-concept-graph3.streamlit.app/)  (Concept graph built from metadata present in JSON format, Same keyterms than V1 and so Concept Graph is the same, Deterministic Layout and More damping for Interactive Visualization)
+
+
 
 
 
