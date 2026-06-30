@@ -55,6 +55,8 @@
 
 [![integratedllmgraphbattery](https://img.shields.io/badge/conceptgraphjson4-streamlit-blue)](https://lithium-ion-battery-concept-graph4.streamlit.app/)  (Concept graph built from metadata present in JSON format, Same keyterms than V1 and so Concept Graph is the same, Deterministic Layout and More damping for Interactive Visualization, Keyterms match)
 
+[![integratedllmgraphbattery](https://img.shields.io/badge/conceptgraphjson5-streamlit-turquoise)](https://lithium-ion-battery-concept-graph5.streamlit.app/)  (Concept graph built from metadata present in JSON format, Same keyterms than V1 and so Concept Graph is the same, Deterministic Layout and More damping for Interactive Visualization, Keyterms match, Advanced Visualizations)
+
 
 
 
