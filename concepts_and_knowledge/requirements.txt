@@ -21,3 +21,4 @@ ollama
 kaleido
 holoviews
 bokeh
+bibtexparser
