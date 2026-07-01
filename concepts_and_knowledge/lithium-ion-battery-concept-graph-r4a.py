@@ -2144,9 +2144,29 @@ def main():
             node_features = torch.tensor(embed_model.encode(valid_concepts, show_progress_bar=False, batch_size=64), dtype=torch.float32)
             gnn_model, final_emb, adj_indices, adj_values = train_gnn(node_features, nx_graph, concept_to_id, pos_pairs, neg_pairs)
             
-            concept_properties = {c: np.median([v for m in all_metrics for vals in m.values() for v in vals]) if any(m.values()) else 0.0 for c in valid_concepts}
-            ridge = Ridge(alpha=1.0).fit(np.array([[concept_properties.get(u, 0), concept_properties.get(v, 0), nx_graph[u][v].get('weight', 1)] for u, v in nx_graph.edges()]), np.array([max(concept_properties.get(u, 0), concept_properties.get(v, 0)) * 1.08 for u, v in nx_graph.edges()])) if len(nx_graph.edges()) > 5 else None
-            top_scores = compute_research_direction_scores(gnn_model, node_features, final_emb, nx_graph, valid_concepts, concept_properties, ridge, embed_model)
+            concept_properties = {}
+            for concept in valid_concepts:
+                doc_indices = concept_abstract_map.get(concept, [])
+                values = []
+                for idx in doc_indices:
+                    if idx < len(all_metrics):
+                        for metric_values in all_metrics[idx].values():
+                            values.extend(metric_values)
+                concept_properties[concept] = np.median(values) if values else 0.0
+
+            X_feat, y_target = [], []
+            for u, v in nx_graph.edges():
+                pu, pv = concept_properties.get(u, 0), concept_properties.get(v, 0)
+                w = nx_graph[u][v].get('weight', 1)
+                X_feat.append([pu, pv, w])
+                y_target.append(max(pu, pv) * 1.08 if max(pu, pv) > 0 else 0)
+            ridge = None
+            if len(X_feat) > 5:
+                ridge = Ridge(alpha=1.0).fit(np.array(X_feat), np.array(y_target))
+            top_scores = compute_research_direction_scores(
+                gnn_model, node_features, final_emb, nx_graph, valid_concepts,
+                concept_properties, ridge, embed_model
+            )
             distill_df = compute_concept_distillation(valid_concepts, concept_abstract_map, all_texts)
             
             burst_df = detect_keyword_bursts(df, valid_concepts, concept_abstract_map, selected_text_cols)
