@@ -695,7 +695,7 @@ class RelationshipType(Enum):
     COMPOSES = "composes"
     QUALIFIES = "qualifies"
     ENABLES = "enables"
-    DISCOVERS = "discovers"
+    DISCOVERS = "dis covers"
     PRE_TRAINS = "pre_trains"
     GENERALIZES = "generalizes"
     QUERIES = "queries"
@@ -890,9 +890,6 @@ class DomainOntology:
         self._add_concept("volumetric_energy_density", ConceptType.PROPERTY,
             synonyms={"volumetric energy", "wh/l"},
             definition="Energy per unit volume of the battery.")
-        self._add_concept("safety", ConceptType.PROPERTY,
-            synonyms={"battery safety", "cell safety", "abuse tolerance"},
-            definition="Resistance to thermal runaway, short circuit, and mechanical abuse.")
 
         # --- Phenomena (Degradation & Side Reactions) ---
         self._add_concept("capacity_fade", ConceptType.PHENOMENON,
@@ -4064,7 +4061,7 @@ def run_batch_analysis(df_filtered: pd.DataFrame, selected_text_cols: List[str],
                        ontology: DomainOntology, run_mode: str = "all") -> None:
     overall_start = time.perf_counter()
     if 'qa_factory' in st.session_state:
-        factory = st.session_state.battery_qa_factory
+        factory = st.session_state.qa_factory
         for analyzer in factory._local_cache.values():
             if hasattr(analyzer, 'unload_model'):
                 analyzer.unload_model()
@@ -4681,7 +4678,7 @@ def render_sidebar() -> None:
         dev = get_device()
         st.caption(f"Device: {dev.upper()}")
         ontology = st.session_state.ontology
-        expander = st.session_state.battery_qa_expander
+        expander = st.session_state.qa_expander
         full_graph = st.session_state.analysis_data.get("nx_graph") if st.session_state.get('analysis_data') else nx.Graph()
         render_llm_query_panel(ontology, expander, full_graph)
         render_mutation_controls(expander)
@@ -6174,8 +6171,8 @@ def main() -> None:
                 else:
                     filtered_concepts = valid_concepts
                     filtered_map = concept_abstract_map
-                ids, labels, values, parents = build_sunburst_data(nx_graph, {c: len(filtered_map.get(c, [])) for c in filtered_concepts},
-                                                              min_weight=0)
+                labels, parents, values = build_sunburst_data(nx_graph, {c: len(filtered_map.get(c, [])) for c in filtered_concepts},
+                                                              min_weight=0, top_n_per_category=st.session_state.get('top_n_sunburst', 0))
                 # build_sunburst_data in battery version is the same as original, but we need to update category colors in render.
                 render_sunburst_chart(labels, parents, values,
                                       cmap_name=st.session_state.get('sunburst_cmap', cmap),
