@@ -863,7 +863,7 @@ class DomainOntology:
         self._add_concept("sei_formation", ConceptType.PHENOMENON,
             synonyms={"sei growth", "solid electrolyte interphase", "passivation layer"},
             definition="Formation of SEI layer on anode, essential for stability but consumes Li")
-        self._add_concept("dendrite_growth", ConceptType.PHENOMONON,
+        self._add_concept("dendrite_growth", ConceptType.PHENOMENON,
             synonyms={"dendrite formation", "lithium whiskers", "dendrite"},
             definition="Growth of lithium dendrites, can lead to short circuits")
         self._add_concept("thermal_runaway", ConceptType.PHENOMENON,
