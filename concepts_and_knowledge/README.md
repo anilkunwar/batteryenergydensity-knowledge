@@ -1,5 +1,5 @@
 
-Concept Graph
+Concept Graph (QDWA + CG + LatentMoE + QtNER) for Understanding Performance of Lithium Metal Batteries
 
 [![meaningtowords](https://img.shields.io/badge/libquerydistilledcg-v1.0-yellow)](https://lithium-ion-battery-query-distilled-concept-graph1.streamlit.app/) (without LatentMoE task, working , QD w/o weighted allocation of categorical impacts,customization to be made in the visualization)
 
