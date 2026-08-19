@@ -7723,16 +7723,16 @@ def render_qdwa_full_dashboard(
 # ============================================================================
 # QDWA GLOBAL INSTANCE (initialize once)
 # ============================================================================
-
+#
 @st.cache_resource
-def get_qdwa_engine(ontology: DomainOntology) -> QDWAEngine:
+def get_qdwa_engine(_ontology: DomainOntology) -> QDWAEngine:
     """Get or create the QDWA engine (cached as resource)."""
     try:
         model = SentenceTransformer('all-MiniLM-L6-v2', device='cpu')
     except Exception:
         st.warning("SentenceTransformer not available, using keyword fallback.")
         model = None
-    return QDWAEngine(ontology, embedding_model=model)
+    return QDWAEngine(_ontology, embedding_model=model)
 
 
 def initialize_qdwa_in_session():
