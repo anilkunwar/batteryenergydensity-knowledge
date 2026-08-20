@@ -521,7 +521,7 @@ class RelationshipType(Enum):
     COMPOSES = "composes"
     QUALIFIES = "qualifies"
     ENABLES = "enables"
-    DISCOVERS = "disovers"
+    DISCOVERS = "discovers"
     PRE_TRAINS = "pre_trains"
     GENERALIZES = "generalizes"
     QUERIES = "queries"
@@ -7585,7 +7585,7 @@ def render_qdwa_chord_matrix(
     )
     st.plotly_chart(fig, use_container_width=True)
 
-#
+
 def render_qdwa_energy_density_score(
     analysis: QDWAAnalysis,
     theme: Dict[str, str] = None,
@@ -7649,19 +7649,13 @@ def render_qdwa_energy_density_score(
                 "Contribution": w * factor,
             })
         contrib_df = pd.DataFrame(contrib)
-        # --- FIX: apply formatting only to numeric columns ---
         st.dataframe(
-            contrib_df.style.format({
-                "W_k": "{:.4f}",
-                "ED Factor": "{:.2f}",
-                "Contribution": "{:.4f}"
-            }).background_gradient(
+            contrib_df.style.format("{:.4f}").background_gradient(
                 subset=["Contribution"], cmap="Greens"
             ),
             use_container_width=True,
             hide_index=True,
         )
-
 
 
 def render_qdwa_full_dashboard(
@@ -7848,34 +7842,6 @@ def render_qdwa_tab() -> None:
 def render_sidebar() -> None:
     with st.sidebar:
         st.header("⚙️ Configuration v7.0 (QDWA)")
-
-        # ============================================================================
-        # RECORD SAMPLING — prevents OOM on 4000+ records
-        # ============================================================================
-        st.markdown("---")
-        st.markdown("### 📊 Record Sampling")
-        st.caption("Full database may exceed 1 GB. Select a subset:")
-
-        SAMPLING_OPTIONS = {
-            "All records (100%)":    1.0,
-            "Half (50%)":           0.50,
-            "Quarter (25%)":        0.25,
-            "One-tenth (10%)":      0.10,
-            "One-twentieth (5%)":   0.05,
-            "100 records":          100,
-            "250 records":          250,
-            "500 records":          500,
-        }
-
-        sampling_choice = st.selectbox(
-            "Dataset fraction", options=list(SAMPLING_OPTIONS.keys()), index=2,
-            key="sampling_select",
-        )
-        sampling_seed = st.sidebar.number_input(
-            "Random seed", min_value=0, max_value=999999, value=42, step=1,
-            key="sampling_seed",
-        )
-
         st.subheader("🎨 Theme")
         st.session_state['theme'] = st.selectbox(
             "Color theme:",
@@ -8470,7 +8436,6 @@ import streamlit as st
 # ============================================================================
 # 0. LOCAL LLM MODEL REGISTRY (< 1B parameters for Streamlit Cloud)
 # ============================================================================
-# (will be overridden dynamically in render_llm_query_panel)
 LOCAL_LLM_REGISTRY: Dict[str, Optional[str]] = {
     "Fallback (Rule-based, no LLM)": None,
     "[Ollama] qwen2.5:0.5b (Fastest, CPU OK)": "ollama:qwen2.5:0.5b",
@@ -8823,7 +8788,7 @@ class LocalLLMQueryAnalyzer(LLMQueryAnalyzer):
             from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
             import torch
 
-            st.info(f"⏳ Loading local model: `{self.model_name}`… (first run may take 1–2 min)")
+            st.info(f"⏳ Loading model: `{self.model_name}` on {'CPU' if is_force_cpu() else 'CUDA'}...")
 
             tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
@@ -9349,54 +9314,25 @@ def render_llm_query_panel(ontology: Any, expander: DynamicOntologyExpander, ful
     if mode in ("auto", "openai"):
         api_key = st.sidebar.text_input("OpenAI API Key (optional)", type="password", value=os.environ.get("OPENAI_API_KEY", ""), key="openai_key_input")
 
-    # --- DYNAMIC LOCAL MODEL SELECTION (UPDATED) ---
     local_model = None
     if mode in ("auto", "local"):
         st.sidebar.markdown("#### 🖥️ Local LLM Model")
-
-        # Detect Ollama once per call
-        _has_ollama = False
-        try:
-            _has_ollama = requests.get(
-                "http://localhost:11434/api/tags", timeout=2
-            ).status_code == 200
-        except Exception:
-            pass
-
-        if _has_ollama:
-            st.sidebar.caption("✅ Ollama detected on localhost:11434")
-            LOCAL_LLM_REGISTRY = {
-                "Fallback (Rule-based, no LLM)": None,
-                "qwen2.5:0.5b (Fastest, CPU OK)": "ollama:qwen2.5:0.5b",
-                "qwen2.5:1.5b (Balanced)":        "ollama:qwen2.5:1.5b",
-                "qwen2.5:7b (Recommended)":       "ollama:qwen2.5:7b",
-                "qwen2.5:14b (Max Reasoning)":    "ollama:qwen2.5:14b",
-                "llama3.1:8b (Meta Standard)":    "ollama:llama3.1:8b",
-                "mistral:7b (High JSON Reliability)": "ollama:mistral:7b",
-                "gemma2:9b (Scientific Nuance)":   "ollama:gemma2:9b",
-                "falcon3:10b (Instruction Following)": "ollama:falcon3:10b",
-            }
-        else:
-            st.sidebar.caption("⚠️ Streamlit Cloud ≈1 GB RAM. Pick a small model or use Fallback.")
-            LOCAL_LLM_REGISTRY = {
-                "Fallback (Rule-based, no LLM)": None,
-                "DistilGPT-2 (82M, fastest)": "distilgpt2",
-                "GPT-Neo-125M (125M)": "EleutherAI/gpt-neo-125M",
-                "Pythia-410M (410M, balanced)": "EleutherAI/pythia-410m",
-                "BLOOM-560M (560M, multilingual)": "bigscience/bloom-560m",
-                "Qwen2-0.5B-Instruct (500M, best JSON)": "Qwen/Qwen2-0.5B-Instruct",
-                "Qwen2.5-0.5B-Instruct (500M, newest)": "Qwen/Qwen2.5-0.5B-Instruct",
-            }
+        st.sidebar.caption("🦙 Ollama mode: models run externally via HTTP. Pick any size your Ollama host can handle.")
 
         model_display_names = list(LOCAL_LLM_REGISTRY.keys())
         selected_display = st.sidebar.selectbox(
-            "Select model:", options=model_display_names, index=0,
+            "Select model:",
+            options=model_display_names,
+            index=0,
             key="local_model_select",
         )
         local_model = LOCAL_LLM_REGISTRY[selected_display]
         st.session_state['selected_local_model'] = local_model
 
-    # --- end of dynamic local model block ---
+        if local_model and local_model.startswith("ollama:") and any(x in local_model for x in [":14b", ":70b", ":72b"]):
+            st.sidebar.warning("⚠️ Large Ollama models (>14B) require significant host RAM/VRAM. Ensure your Ollama server has enough memory.")
+        elif local_model and ("0.5B" in selected_display or "560M" in selected_display or "410M" in selected_display):
+            st.sidebar.info("ℹ️ 400–500M models work on free tier but load slowly. DistilGPT-2 (82M) is fastest.")
 
     example_queries = [q for pdef in LIB_PROBLEM_DEFINITIONS.values() for q in pdef.example_queries[:1]]
     selected_example = st.sidebar.selectbox("Or select an example:", [""] + example_queries, key="example_query_select")
@@ -9408,11 +9344,27 @@ def render_llm_query_panel(ontology: Any, expander: DynamicOntologyExpander, ful
     factory = LLMQueryAnalyzerFactory()
     analyzer = factory.get_analyzer(mode=mode, api_key=api_key, local_model=local_model)
 
-    if isinstance(analyzer, OpenAIQueryAnalyzer): st.sidebar.info("🤖 Using **OpenAI GPT-4o-mini**")
-    elif isinstance(analyzer, LocalLLMQueryAnalyzer): st.sidebar.info("🖥️ Using **Local LLM**")
-    else: st.sidebar.info("📋 Using **Rule-based fallback**")
+    # Dynamic verbosity: show which analyzer is actually running
+    if isinstance(analyzer, OpenAIQueryAnalyzer):
+        analyzer_type = "OpenAI GPT-4o-mini"
+    elif isinstance(analyzer, LocalLLMQueryAnalyzer):
+        if analyzer._is_ollama:
+            analyzer_type = f"Ollama ({analyzer.model_name.split(':')[-1]})"
+        else:
+            analyzer_type = f"Local LLM ({analyzer.model_name.split('/')[-1]})"
+    else:
+        analyzer_type = "Rule-based fallback"
 
-    with st.spinner("🔍 Analyzing query via Ollama..."):
+    # Verbose logging for debugging
+    st.sidebar.info(f"**Analyzer Type:** {type(analyzer).__name__}")
+    if isinstance(analyzer, LocalLLMQueryAnalyzer):
+        st.sidebar.info(f"**Model:** {analyzer.model_name}")
+        st.sidebar.info(f"**Is Ollama:** {analyzer._is_ollama}")
+        st.sidebar.info(f"**Device:** {'CPU (forced)' if is_force_cpu() else 'CUDA' if torch.cuda.is_available() else 'CPU'}")
+
+    st.sidebar.info(f"🤖 Using **{analyzer_type}**")
+
+    with st.spinner(f"🔍 Analyzing query via {analyzer_type}..."):
         analysis = analyzer.analyze_query(query, ontology)
     with st.spinner("🧬 Expanding ontology..."):
         mutations = expander.apply_query_analysis(analysis, analyzer)
@@ -9701,37 +9653,6 @@ def main() -> None:
     st.success(
         f"Loaded {len(successful_files)} file(s) | {len(df)} record(s)"
     )
-
-    # --- APPLY RECORD SAMPLING ---
-    total_records = len(df)
-    st.sidebar.caption(f"Total in database: **{total_records:,}**")
-
-    # Get sampling settings from sidebar (defined in render_sidebar)
-    sampling_choice = st.session_state.get("sampling_select", "Quarter (25%)")
-    sampling_seed = st.session_state.get("sampling_seed", 42)
-    SAMPLING_OPTIONS = {
-        "All records (100%)":    1.0,
-        "Half (50%)":           0.50,
-        "Quarter (25%)":        0.25,
-        "One-tenth (10%)":      0.10,
-        "One-twentieth (5%)":   0.05,
-        "100 records":          100,
-        "250 records":          250,
-        "500 records":          500,
-    }
-    sel = SAMPLING_OPTIONS[sampling_choice]
-    if isinstance(sel, float):
-        n = max(1, int(total_records * sel))
-    else:
-        n = min(int(sel), total_records)
-
-    if n < total_records:
-        df = df.sample(n=n, random_state=sampling_seed).reset_index(drop=True)
-        st.sidebar.success(f"Using **{n:,}** / **{total_records:,}** records")
-    else:
-        st.sidebar.info(f"Using all **{total_records:,}** records")
-    # --- END SAMPLING ---
-
     file_names = [f[0] for f in successful_files]
     selected_files = st.multiselect(
         "Filter by source file", file_names, default=file_names,
