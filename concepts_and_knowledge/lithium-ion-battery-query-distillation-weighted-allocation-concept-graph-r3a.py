@@ -7585,7 +7585,7 @@ def render_qdwa_chord_matrix(
     )
     st.plotly_chart(fig, use_container_width=True)
 
-
+#
 def render_qdwa_energy_density_score(
     analysis: QDWAAnalysis,
     theme: Dict[str, str] = None,
@@ -7649,13 +7649,19 @@ def render_qdwa_energy_density_score(
                 "Contribution": w * factor,
             })
         contrib_df = pd.DataFrame(contrib)
+        # --- FIX: apply formatting only to numeric columns ---
         st.dataframe(
-            contrib_df.style.format("{:.4f}").background_gradient(
+            contrib_df.style.format({
+                "W_k": "{:.4f}",
+                "ED Factor": "{:.2f}",
+                "Contribution": "{:.4f}"
+            }).background_gradient(
                 subset=["Contribution"], cmap="Greens"
             ),
             use_container_width=True,
             hide_index=True,
         )
+
 
 
 def render_qdwa_full_dashboard(
