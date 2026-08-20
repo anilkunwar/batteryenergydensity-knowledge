@@ -3815,7 +3815,7 @@ _NODE_TYPE_COLORS = {
     ConceptType.GENERAL:        "#95A5A6",
 }
 
-
+#
 def render_pyvis_graph(
     nx_graph, concept_abstract_map, physics_enabled=True,
     cmap_name="viridis", top_n_nodes=0, theme=None, physics_preset=None,
@@ -3835,10 +3835,12 @@ def render_pyvis_graph(
     external_font_color="#333333",
     external_label_align="left",
 ) -> None:
+    # Use provided theme or fall back to "Default Light" (exists)
     if theme is None:
-        theme = THEME_PRESETS["Bright (Default)"]
+        theme = THEME_PRESETS.get("Default Light", THEME_PRESETS["Default Light"])
+    # Use provided physics preset or default
     if physics_preset is None:
-        physics_preset = PHYSICS_PRESETS["Stable (Default)"]
+        physics_preset = PHYSICS_PRESETS.get("Stable (Default)", PHYSICS_PRESETS["Stable (Default)"])
 
     if top_n_nodes > 0 and len(nx_graph.nodes()) > top_n_nodes:
         degrees = dict(nx_graph.degree(weight='weight'))
