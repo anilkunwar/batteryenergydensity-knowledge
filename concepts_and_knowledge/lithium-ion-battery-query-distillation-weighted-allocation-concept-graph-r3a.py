@@ -3664,6 +3664,44 @@ THEME_PRESETS = {
         "danger": "#000000",
     },
 }
+#
+# ============================================================================
+# PHYSICS PRESETS FOR PYVIS GRAPH (flat keys)
+# ============================================================================
+PHYSICS_PRESETS: Dict[str, Dict[str, Any]] = {
+    "Stable (Default)": {
+        "gravity": -800,
+        "central_gravity": 0.1,
+        "spring_length": 120,
+        "spring_strength": 0.02,
+        "damping": 0.95,
+        "stabilization": 500
+    },
+    "Fluid": {
+        "gravity": -500,
+        "central_gravity": 0.2,
+        "spring_length": 150,
+        "spring_strength": 0.04,
+        "damping": 0.8,
+        "stabilization": 500
+    },
+    "Tight": {
+        "gravity": -2000,
+        "central_gravity": 0.3,
+        "spring_length": 80,
+        "spring_strength": 0.08,
+        "damping": 0.6,
+        "stabilization": 500
+    },
+    "Off": {
+        "gravity": 0,
+        "central_gravity": 0,
+        "spring_length": 100,
+        "spring_strength": 0,
+        "damping": 0.99,
+        "stabilization": 0
+    }
+}
 
 def get_current_theme() -> Dict[str, str]:
     theme_name = st.session_state.get("viz_theme", "Default Light")
@@ -8174,6 +8212,7 @@ def render_qdwa_tab() -> None:
 # ============================================================================
 # SIDEBAR
 # ============================================================================
+#
 def render_sidebar() -> None:
     with st.sidebar:
         st.header("⚙️ Configuration v7.0 (QDWA)")
@@ -8227,7 +8266,7 @@ def render_sidebar() -> None:
                     st.write(sorted(whitelist))
             else:
                 st.info("Ask a question in the 🤖 LLM-Guided Q&A tab to generate a whitelist.")
-        theme = THEME_PRESETS[st.session_state['theme']]
+        theme = THEME_PRESETS.get(st.session_state['theme'], THEME_PRESETS["Default Light"])
         st.subheader("🔬 Lithium‑Ion Battery Focus Areas")
         st.markdown("- **Materials:** NMC811, LFP, Graphite, Silicon, Solid Electrolytes, etc.")
         st.markdown("- **Manufacturing:** Calendering, Slot‑Die Coating, Doping, Surface Coating, Prelithiation, Formation")
@@ -8776,7 +8815,6 @@ def render_sidebar() -> None:
         render_llm_query_panel(ontology, expander, full_graph)
         render_mutation_controls(expander)
         render_query_history()
-
 
 # ============================================================================
 # ★★★ LLM-GUIDED QUERY ANALYSIS & GRAPHRAG INTEGRATOR (v6.2) ★★★
