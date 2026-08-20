@@ -241,6 +241,229 @@ def get_colormap_colors(cmap_name: str, n: int) -> List[str]:
 
 
 # ============================================================================
+# UNIFIED LLM BACKEND SYSTEM (Works on BOTH Streamlit Cloud AND Local)
+# ============================================================================
+
+class LLMBackend(Enum):
+    FALLBACK = "fallback"
+    HUGGINGFACE = "huggingface"  
+    OLLAMA = "ollama"
+    OPENAI = "openai"
+
+# Models for Streamlit Cloud (HuggingFace, <1GB RAM)
+HUGGINGFACE_MODELS: Dict[str, Optional[str]] = {
+    "⚡ Fallback (Rule-based, no LLM)": None,
+    "🤗 DistilGPT-2 (82M, fastest)": "distilgpt2",
+    "🤗 GPT-Neo-125M (125M)": "EleutherAI/gpt-neo-125M",
+    "🤗 Pythia-410M (410M)": "EleutherAI/pythia-410m",
+    "🤗 BLOOM-560M (560M)": "bigscience/bloom-560m",
+    "🤗 Qwen2-0.5B-Instruct (500M)": "Qwen/Qwen2-0.5B-Instruct",
+    "🤗 Qwen2.5-0.5B-Instruct (500M, newest)": "Qwen/Qwen2.5-0.5B-Instruct",
+}
+
+# Models for Local with Ollama (Any size)
+OLLAMA_MODELS: Dict[str, Optional[str]] = {
+    "⚡ Fallback (Rule-based, no LLM)": None,
+    "🦙 qwen2.5:0.5b (Fastest, CPU OK)": "ollama:qwen2.5:0.5b",
+    "🦙 qwen2.5:1.5b (Balanced)": "ollama:qwen2.5:1.5b",
+    "🦙 qwen2.5:7b (Recommended)": "ollama:qwen2.5:7b",
+    "🦙 qwen2.5:14b (Max Reasoning)": "ollama:qwen2.5:14b",
+    "🦙 llama3.1:8b (Meta)": "ollama:llama3.1:8b",
+    "🦙 mistral:7b (JSON Reliable)": "ollama:mistral:7b",
+    "🦙 gemma2:9b (Scientific)": "ollama:gemma2:9b",
+    "🦙 falcon3:10b (Instructions)": "ollama:falcon3:10b",
+}
+
+def check_ollama_available() -> Tuple[bool, List[str], str]:
+    """Check if Ollama is running and return (is_available, models_list, status_msg)"""
+    try:
+        response = requests.get("http://localhost:11434/api/tags", timeout=3)
+        if response.status_code == 200:
+            models = [m["name"] for m in response.json().get("models", [])]
+            return True, sorted(models), "🦙 Ollama connected"
+    except requests.exceptions.ConnectionError:
+        return False, [], "⚠️ Ollama not running"
+    except requests.exceptions.Timeout:
+        return False, [], "⚠️ Ollama timeout"
+    except Exception as e:
+        return False, [], f"⚠️ Ollama error: {str(e)[:30]}"
+    return False, [], "⚠️ Ollama unavailable"
+
+def get_backend_from_model(model_str: Optional[str]) -> LLMBackend:
+    if model_str is None:
+        return LLMBackend.FALLBACK
+    if model_str.startswith("ollama:"):
+        return LLMBackend.OLLAMA
+    return LLMBackend.HUGGINGFACE
+
+def get_model_info(model_str: Optional[str]) -> Dict[str, Any]:
+    backend = get_backend_from_model(model_str)
+    if backend == LLMBackend.FALLBACK:
+        return {
+            "backend": LLMBackend.FALLBACK,
+            "model_name": None,
+            "display_name": "Rule-based (no LLM)",
+            "icon": "⚡",
+            "short_name": "Fallback",
+            "spinner_msg": "🔍 Analyzing with rule-based engine...",
+            "success_msg": "✅ Analysis complete (rule-based)",
+        }
+    elif backend == LLMBackend.OLLAMA:
+        ollama_model = model_str[7:]
+        return {
+            "backend": LLMBackend.OLLAMA,
+            "model_name": ollama_model,
+            "display_name": f"Ollama ({ollama_model})",
+            "icon": "🦙",
+            "short_name": ollama_model,
+            "spinner_msg": f"🦙 Analyzing via Ollama ({ollama_model})...",
+            "success_msg": f"✅ Analysis complete via Ollama: {ollama_model}",
+        }
+    else:  # HUGGINGFACE
+        short = model_str.split("/")[-1] if "/" in model_str else model_str
+        return {
+            "backend": LLMBackend.HUGGINGFACE,
+            "model_name": model_str,
+            "display_name": f"HuggingFace ({short})",
+            "icon": "🤗",
+            "short_name": short,
+            "spinner_msg": f"🤗 Analyzing via HuggingFace ({short})...",
+            "success_msg": f"✅ Analysis complete via HuggingFace: {short}",
+        }
+
+# ============================================================================
+# OLLAMA QUERY ANALYZER
+# ============================================================================
+
+class OllamaQueryAnalyzer:
+    """Query analyzer using Ollama REST API - for local deployment."""
+    OLLAMA_URL = "http://localhost:11434"
+    
+    def __init__(self, model_name: str, ontology: 'DomainOntology' = None):
+        self.model_name = model_name
+        self.ontology = ontology
+        self._verify_model()
+    
+    def _verify_model(self):
+        try:
+            response = requests.get(f"{self.OLLAMA_URL}/api/tags", timeout=5)
+            if response.status_code == 200:
+                available = [m["name"] for m in response.json().get("models", [])]
+                variants = [self.model_name, f"{self.model_name}:latest"]
+                if not any(v in available for v in variants):
+                    st.warning(f"⚠️ Model `{self.model_name}` not in Ollama.\nPull it: `ollama pull {self.model_name}`")
+        except Exception as e:
+            raise ConnectionError(f"Cannot connect to Ollama at {self.OLLAMA_URL}.\nStart it with: `ollama serve`")
+    
+    def _call_ollama(self, prompt: str, system: str = None) -> str:
+        payload = {
+            "model": self.model_name,
+            "prompt": prompt,
+            "stream": False,
+            "options": {"temperature": 0.3, "top_p": 0.9, "num_predict": 1024}
+        }
+        if system:
+            payload["system"] = system
+        response = requests.post(f"{self.OLLAMA_URL}/api/generate", json=payload, timeout=120)
+        response.raise_for_status()
+        return response.json().get("response", "")
+    
+    def analyze_query(self, query: str, ontology: 'DomainOntology') -> 'QueryAnalysisResult':
+        system_prompt = "You are an expert in lithium-ion battery materials science. Analyze the query and extract concepts, relationships, and metrics. Respond in valid JSON only."
+        user_prompt = f"Query: {query}\nAvailable concepts: {list(ontology.concepts.keys())[:30]}\nReturn JSON: {{'problem_type': 'energy_density_enhancement|cycle_life_extension|fast_charging|safety_thermal_runaway|manufacturing_reproducibility|general', 'key_concepts': ['concept1', 'concept2'], 'relationships': [{{'source': 'x', 'target': 'y', 'type': 'influences'}}], 'target_metrics': ['metric1'], 'reasoning': 'step by step'}}"
+        raw_response = self._call_ollama(user_prompt, system_prompt)
+        try:
+            json_match = re.search(r'```json\s*([\s\S]*?)\s*```', raw_response)
+            json_str = json_match.group(1) if json_match else raw_response
+            parsed = json.loads(json_str)
+            # Map to QueryAnalysisResult (using fallback analyzer for conversion if needed)
+            # We'll just create a minimal result and fill it; but we need to use existing structures.
+            # Since we have a QueryAnalysisResult defined later, we'll use it.
+            # However, the existing QueryAnalysisResult has primary_problem as LIBProblem enum, not string.
+            # We'll map problem_type string to LIBProblem.
+            problem_map = {
+                "energy_density_enhancement": LIBProblem.ENERGY_DENSITY_ENHANCEMENT,
+                "cycle_life_extension": LIBProblem.CYCLE_LIFE_EXTENSION,
+                "fast_charging": LIBProblem.FAST_CHARGING,
+                "safety_thermal_runaway": LIBProblem.SAFETY_THERMAL_RUNAWAY,
+                "manufacturing_reproducibility": LIBProblem.MANUFACTURING_REPRODUCIBILITY,
+                "general": LIBProblem.GENERAL,
+            }
+            problem_type = parsed.get("problem_type", "general")
+            primary = problem_map.get(problem_type, LIBProblem.GENERAL)
+            # Build concept priorities (simple)
+            priorities = {}
+            for c in parsed.get("key_concepts", []):
+                # We'll assign a simple priority
+                priorities[c] = ConceptPriority(
+                    concept_name=c,
+                    concept_type="general",
+                    composite_score=0.8,
+                    direct_score=0.8,
+                    problem_affinity_score=0.7,
+                    causal_path_score=0.5,
+                    is_explicitly_mentioned=True,
+                    is_inferred=False,
+                    inference_reason="ollama_explicit"
+                )
+            # We also need to handle inferred concepts from relationships
+            for rel in parsed.get("relationships", []):
+                src = rel.get("source")
+                tgt = rel.get("target")
+                if src and src not in priorities:
+                    priorities[src] = ConceptPriority(
+                        concept_name=src,
+                        concept_type="general",
+                        composite_score=0.5,
+                        direct_score=0.0,
+                        problem_affinity_score=0.5,
+                        causal_path_score=0.5,
+                        is_explicitly_mentioned=False,
+                        is_inferred=True,
+                        inference_reason="ollama_inferred"
+                    )
+                if tgt and tgt not in priorities:
+                    priorities[tgt] = ConceptPriority(
+                        concept_name=tgt,
+                        concept_type="general",
+                        composite_score=0.5,
+                        direct_score=0.0,
+                        problem_affinity_score=0.5,
+                        causal_path_score=0.5,
+                        is_explicitly_mentioned=False,
+                        is_inferred=True,
+                        inference_reason="ollama_inferred"
+                    )
+            return QueryAnalysisResult(
+                original_query=query,
+                normalized_query=query.lower(),
+                primary_problem=primary,
+                secondary_problems=[],
+                problem_confidences={},
+                explicitly_mentioned=list(priorities.keys()),
+                inferred_concepts=[c for c, p in priorities.items() if p.is_inferred],
+                all_relevant_concepts=list(priorities.keys()),
+                concept_priorities=priorities,
+                query_type="general",
+                emphasis_direction="neutral",
+                subgraph_depth=2,
+                priority_threshold=0.3,
+                focus_nodes=list(priorities.keys())[:5],
+                bridge_nodes=[],
+                suggested_layout="force",
+                highlight_paths=[[r["source"], r["target"]] for r in parsed.get("relationships", []) if "source" in r and "target" in r],
+                visualization_focus=[],
+                reasoning_chain=[parsed.get("reasoning", "No reasoning provided")],
+                confidence=0.8,
+                analyzer_type="ollama",
+                model_name=self.model_name
+            )
+        except json.JSONDecodeError:
+            st.warning("⚠️ Ollama returned invalid JSON, using fallback")
+            return FallbackAnalyzer().analyze_query(query, ontology)
+
+
+# ============================================================================
 # ROBUST FILE LOADER (JSON / JSONL / CSV / BibTeX)
 # ============================================================================
 def robust_load_file(filepath: Path):
@@ -3381,135 +3604,175 @@ class GraphEditHistory:
 
 
 # ============================================================================
-# THEME CONFIGURATION
+# VISUALIZATION THEME SYSTEM (Unified for QDWA & Microtransformer)
 # ============================================================================
+
 THEME_PRESETS = {
-    "Bright (Default)": {
-        "bg": "#ffffff", "font": "#1e293b",
-        "tooltip_bg": "rgba(255,255,255,0.95)",
-        "tooltip_border": "#cbd5e1", "tooltip_text": "#1e293b",
-        "edge_cooccurrence": "rgba(56, 189, 248, 0.45)",
-        "edge_semantic": "rgba(251, 146, 60, 0.40)",
-        "edge_bridge": "rgba(250, 204, 21, 0.55)",
-        "edge_inferred": "rgba(139, 92, 246, 0.50)",
-        "edge_cause": "rgba(239, 68, 68, 0.55)",
-        "edge_hypernym": "rgba(34, 197, 94, 0.45)",
-        "edge_unknown": "rgba(148, 163, 184, 0.30)",
-        "node_border": "#f8fafc", "highlight_bg": "#ff6b6b",
-        "hover_bg": "#ffd93d",
-        "shadow_color": "rgba(0,0,0,0.15)",
-        "plotly_bg": "#ffffff", "plotly_paper": "#ffffff",
-        "grid_color": "#e2e8f0", "axis_color": "#64748b",
+    "Default Light": {
+        "font": "#333333",
+        "axis_color": "#666666",
+        "grid_color": "#e0e0e0",
+        "plotly_paper": "#ffffff",
+        "plotly_bg": "#f8f9fa",
+        "accent": "#3b82f6",
+        "accent2": "#10b981",
+        "warning": "#f59e0b",
+        "danger": "#ef4444",
     },
-    "Dark": {
-        "bg": "#0f172a", "font": "#e2e8f0",
-        "tooltip_bg": "rgba(15, 23, 42, 0.95)",
-        "tooltip_border": "#334155", "tooltip_text": "#e2e8f0",
-        "edge_cooccurrence": "rgba(56, 189, 248, 0.55)",
-        "edge_semantic": "rgba(251, 146, 60, 0.50)",
-        "edge_bridge": "rgba(250, 204, 21, 0.65)",
-        "edge_inferred": "rgba(139, 92, 246, 0.60)",
-        "edge_cause": "rgba(239, 68, 68, 0.65)",
-        "edge_hypernym": "rgba(34, 197, 94, 0.55)",
-        "edge_unknown": "rgba(148, 163, 184, 0.40)",
-        "node_border": "#f8fafc", "highlight_bg": "#ff6b6b",
-        "hover_bg": "#ffd93d",
-        "shadow_color": "rgba(0,0,0,0.6)",
-        "plotly_bg": "#0f172a", "plotly_paper": "#0f172a",
-        "grid_color": "#1e293b", "axis_color": "#94a3b8",
+    "Dark Mode": {
+        "font": "#e5e7eb",
+        "axis_color": "#9ca3af",
+        "grid_color": "#374151",
+        "plotly_paper": "#1f2937",
+        "plotly_bg": "#111827",
+        "accent": "#60a5fa",
+        "accent2": "#34d399",
+        "warning": "#fbbf24",
+        "danger": "#f87171",
     },
-    "Midnight": {
-        "bg": "#020617", "font": "#f1f5f9",
-        "tooltip_bg": "rgba(2, 6, 23, 0.97)",
-        "tooltip_border": "#1e293b", "tooltip_text": "#f1f5f9",
-        "edge_cooccurrence": "rgba(99, 102, 241, 0.55)",
-        "edge_semantic": "rgba(236, 72, 153, 0.50)",
-        "edge_bridge": "rgba(34, 211, 238, 0.65)",
-        "edge_inferred": "rgba(168, 85, 247, 0.60)",
-        "edge_cause": "rgba(244, 63, 94, 0.65)",
-        "edge_hypernym": "rgba(52, 211, 153, 0.55)",
-        "edge_unknown": "rgba(71, 85, 105, 0.40)",
-        "node_border": "#e2e8f0", "highlight_bg": "#f43f5e",
-        "hover_bg": "#22d3ee",
-        "shadow_color": "rgba(0,0,0,0.7)",
-        "plotly_bg": "#020617", "plotly_paper": "#020617",
-        "grid_color": "#0f172a", "axis_color": "#64748b",
+    "Scientific (Nature)": {
+        "font": "#1a1a1a",
+        "axis_color": "#4a4a4a",
+        "grid_color": "#d4d4d4",
+        "plotly_paper": "#ffffff",
+        "plotly_bg": "#fafafa",
+        "accent": "#0d47a1",
+        "accent2": "#1b5e20",
+        "warning": "#e65100",
+        "danger": "#b71c1c",
     },
-    "Warm": {
-        "bg": "#fff7ed", "font": "#431407",
-        "tooltip_bg": "rgba(255, 247, 237, 0.97)",
-        "tooltip_border": "#fdba74", "tooltip_text": "#431407",
-        "edge_cooccurrence": "rgba(234, 88, 12, 0.45)",
-        "edge_semantic": "rgba(180, 83, 9, 0.40)",
-        "edge_bridge": "rgba(202, 138, 4, 0.55)",
-        "edge_inferred": "rgba(147, 51, 234, 0.50)",
-        "edge_cause": "rgba(220, 38, 38, 0.55)",
-        "edge_hypernym": "rgba(22, 163, 74, 0.45)",
-        "edge_unknown": "rgba(120, 53, 15, 0.25)",
-        "node_border": "#fff7ed", "highlight_bg": "#dc2626",
-        "hover_bg": "#f59e0b",
-        "shadow_color": "rgba(124, 45, 18, 0.15)",
-        "plotly_bg": "#fff7ed", "plotly_paper": "#fff7ed",
-        "grid_color": "#fed7aa", "axis_color": "#9a3412",
+    "High Contrast": {
+        "font": "#000000",
+        "axis_color": "#000000",
+        "grid_color": "#cccccc",
+        "plotly_paper": "#ffffff",
+        "plotly_bg": "#f0f0f0",
+        "accent": "#0000cc",
+        "accent2": "#006600",
+        "warning": "#cc6600",
+        "danger": "#cc0000",
     },
-    "Forest": {
-        "bg": "#f0fdf4", "font": "#052e16",
-        "tooltip_bg": "rgba(240, 253, 244, 0.97)",
-        "tooltip_border": "#86efac", "tooltip_text": "#052e16",
-        "edge_cooccurrence": "rgba(22, 163, 74, 0.45)",
-        "edge_semantic": "rgba(5, 150, 105, 0.40)",
-        "edge_bridge": "rgba(234, 179, 8, 0.55)",
-        "edge_inferred": "rgba(139, 92, 246, 0.50)",
-        "edge_cause": "rgba(239, 68, 68, 0.55)",
-        "edge_hypernym": "rgba(21, 128, 61, 0.45)",
-        "edge_unknown": "rgba(20, 83, 45, 0.25)",
-        "node_border": "#f0fdf4", "highlight_bg": "#15803d",
-        "hover_bg": "#84cc16",
-        "shadow_color": "rgba(20, 83, 45, 0.15)",
-        "plotly_bg": "#f0fdf4", "plotly_paper": "#f0fdf4",
-        "grid_color": "#bbf7d0", "axis_color": "#166534",
-    },
-    "Ocean": {
-        "bg": "#ecfeff", "font": "#083344",
-        "tooltip_bg": "rgba(236, 254, 255, 0.97)",
-        "tooltip_border": "#67e8f9", "tooltip_text": "#083344",
-        "edge_cooccurrence": "rgba(6, 182, 212, 0.45)",
-        "edge_semantic": "rgba(14, 165, 233, 0.40)",
-        "edge_bridge": "rgba(99, 102, 241, 0.55)",
-        "edge_inferred": "rgba(168, 85, 247, 0.50)",
-        "edge_cause": "rgba(244, 63, 94, 0.55)",
-        "edge_hypernym": "rgba(13, 148, 136, 0.45)",
-        "edge_unknown": "rgba(21, 94, 117, 0.25)",
-        "node_border": "#ecfeff", "highlight_bg": "#0ea5e9",
-        "hover_bg": "#22d3ee",
-        "shadow_color": "rgba(8, 51, 68, 0.15)",
-        "plotly_bg": "#ecfeff", "plotly_paper": "#ecfeff",
-        "grid_color": "#a5f3fc", "axis_color": "#0e7490",
+    "Print Friendly": {
+        "font": "#000000",
+        "axis_color": "#333333",
+        "grid_color": "#cccccc",
+        "plotly_paper": "#ffffff",
+        "plotly_bg": "#ffffff",
+        "accent": "#000000",
+        "accent2": "#333333",
+        "warning": "#666666",
+        "danger": "#000000",
     },
 }
 
-PHYSICS_PRESETS = {
-    "Stable (Default)": {
-        "damping": 0.55, "gravity": -2500, "spring_length": 140,
-        "spring_strength": 0.05, "central_gravity": 0.25,
-        "stabilization": 2500,
-    },
-    "Fluid": {
-        "damping": 0.25, "gravity": -1800, "spring_length": 120,
-        "spring_strength": 0.05, "central_gravity": 0.30,
-        "stabilization": 1500,
-    },
-    "Tight": {
-        "damping": 0.70, "gravity": -4000, "spring_length": 80,
-        "spring_strength": 0.08, "central_gravity": 0.20,
-        "stabilization": 3000,
-    },
-    "Off": {
-        "damping": 0.99, "gravity": 0, "spring_length": 200,
-        "spring_strength": 0.0, "central_gravity": 0.0,
-        "stabilization": 0,
-    },
-}
+def get_current_theme() -> Dict[str, str]:
+    theme_name = st.session_state.get("viz_theme", "Default Light")
+    return THEME_PRESETS.get(theme_name, THEME_PRESETS["Default Light"])
+
+def apply_chart_style(fig: go.Figure, theme: Optional[Dict[str, str]] = None,
+                      is_axial: bool = True, chart_type: str = "default") -> go.Figure:
+    if theme is None:
+        theme = get_current_theme()
+    font_family = st.session_state.get("viz_font_family", "Inter, Segoe UI, Roboto, sans-serif")
+    font_size = int(st.session_state.get("viz_font_size", 11))
+    title_size = int(st.session_state.get("viz_title_size", 15))
+    show_grid = st.session_state.get("viz_show_grid", False)
+    padding = st.session_state.get("viz_padding", {"l": 60, "r": 40, "t": 60, "b": 60})
+
+    fig.update_layout(
+        font=dict(family=font_family, size=font_size, color=theme["font"]),
+        title_font=dict(family=font_family, size=title_size, color=theme["font"]),
+        paper_bgcolor=theme["plotly_paper"],
+        plot_bgcolor=theme["plotly_bg"],
+        margin=padding,
+    )
+    if is_axial:
+        try:
+            for ax_func in (fig.update_xaxes, fig.update_yaxes):
+                ax_func(
+                    showgrid=show_grid,
+                    gridcolor=theme["grid_color"],
+                    gridwidth=0.5,
+                    tickfont=dict(family=font_family, size=font_size - 1, color=theme["axis_color"]),
+                    title_font=dict(family=font_family, size=font_size, color=theme["axis_color"]),
+                    zerolinecolor=theme["grid_color"],
+                    zerolinewidth=1,
+                )
+        except Exception:
+            pass
+    return fig
+
+
+def render_viz_customization_panel():
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🎨 Visualization Settings")
+    defaults = {
+        "viz_theme": "Default Light",
+        "viz_font_family": "Inter, Segoe UI, Roboto, sans-serif",
+        "viz_font_size": 11,
+        "viz_title_size": 15,
+        "viz_show_grid": False,
+        "viz_qdwa_cmap": "Blues",
+        "viz_mt_cmap": "RdYlBu_r",
+        "viz_heatmap_cmap": "viridis",
+        "viz_cbar_title": "Value",
+        "viz_cbar_thickness": 14,
+        "viz_cbar_length": 0.8,
+        "viz_padding": {"l": 60, "r": 40, "t": 60, "b": 60},
+        "mt_cbar_title": "Attention Weight",
+        "mt_cbar_thickness": 14,
+        "mt_cbar_length": 0.8,
+    }
+    for key, val in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
+
+    with st.sidebar.expander("🎭 Theme Preset", expanded=False):
+        st.selectbox("Select theme:", list(THEME_PRESETS.keys()), key="viz_theme",
+                     format_func=lambda x: f"{'🌙' if 'Dark' in x else '☀️'} {x}")
+    with st.sidebar.expander("🔤 Typography", expanded=False):
+        st.selectbox("Font Family:", [
+            "Inter, Segoe UI, Roboto, sans-serif",
+            "Arial, Helvetica, sans-serif",
+            "'Times New Roman', Times, serif",
+            "'Courier New', Courier, monospace",
+        ], key="viz_font_family")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.slider("Font Size:", 8, 16, 11, key="viz_font_size")
+        with col2:
+            st.slider("Title Size:", 12, 24, 15, key="viz_title_size")
+    with st.sidebar.expander("📐 Layout", expanded=False):
+        st.checkbox("Show Grid Lines", key="viz_show_grid")
+        padding = st.session_state["viz_padding"]
+        col1, col2 = st.columns(2)
+        with col1:
+            st.number_input("Left Pad:", 10, 150, padding["l"], key="pad_l")
+            st.number_input("Top Pad:", 10, 150, padding["t"], key="pad_t")
+        with col2:
+            st.number_input("Right Pad:", 10, 150, padding["r"], key="pad_r")
+            st.number_input("Bottom Pad:", 10, 150, padding["b"], key="pad_b")
+        st.session_state["viz_padding"] = {
+            "l": st.session_state.get("pad_l", 60),
+            "r": st.session_state.get("pad_r", 40),
+            "t": st.session_state.get("pad_t", 60),
+            "b": st.session_state.get("pad_b", 60),
+        }
+    with st.sidebar.expander("🎨 Colormaps", expanded=False):
+        st.selectbox("QDWA Colormap:", ["Blues", "Viridis", "Plasma", "Inferno", "Turbo", "RdYlBu", "Spectral", "Coolwarm"], key="viz_qdwa_cmap")
+        st.selectbox("MT Colormap:", ["RdYlBu_r", "viridis", "plasma", "inferno", "hot", "coolwarm", "seismic"], key="viz_mt_cmap")
+        st.selectbox("Heatmap Colormap:", ["viridis", "plasma", "inferno", "magma", "cividis", "hot", "coolwarm", "RdBu"], key="viz_heatmap_cmap")
+    with st.sidebar.expander("📊 Colorbar", expanded=False):
+        st.text_input("Colorbar Title:", value="Value", key="viz_cbar_title")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.slider("Thickness:", 8, 30, 14, key="viz_cbar_thickness")
+        with col2:
+            st.slider("Length:", 0.3, 1.0, 0.8, 0.05, key="viz_cbar_length", format="%.2f")
+    if st.button("🔄 Reset to Defaults", key="reset_viz"):
+        for key, val in defaults.items():
+            st.session_state[key] = val
+        st.rerun()
 
 
 # ============================================================================
@@ -6403,7 +6666,7 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
         theme = THEME_PRESETS.get(theme_name, THEME_PRESETS["Bright (Default)"])
         cmap_scale = plotly_continuous_scale(cmap_name, n=12)
 
-        # 1. Heatmap
+        # 1. Heatmap - apply style
         fig_heat = px.imshow(
             routing_np,
             labels=dict(x="Expert", y="Token", color="Activation"),
@@ -6413,14 +6676,18 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
             color_continuous_scale=cmap_name,
             aspect="auto"
         )
-        # Add custom hovertext: show expert labels
         fig_heat.update_traces(
             hovertemplate="<b>Token:</b> %{y}<br><b>Expert:</b> %{x}<br><b>Activation:</b> %{z:.3f}<extra></extra>"
         )
-        apply_mt_chart_style(fig_heat, theme)
+        fig_heat = apply_chart_style(fig_heat, theme, is_axial=False, chart_type="microtransformer")
+        fig_heat.update_layout(
+            coloraxis_colorbar_title=st.session_state.get("mt_cbar_title", "Attention Weight"),
+            coloraxis_colorbar_thickness=st.session_state.get("mt_cbar_thickness", 14),
+            coloraxis_colorbar_len=st.session_state.get("mt_cbar_length", 0.8),
+        )
         st.plotly_chart(fig_heat, use_container_width=True)
 
-        # 2. Bar chart (average per expert across tokens)
+        # 2. Bar chart - apply style
         avg_per_expert = routing_np.mean(axis=0)
         fig_bar = go.Figure()
         fig_bar.add_trace(go.Bar(
@@ -6437,26 +6704,23 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
             yaxis_title="Activation",
             xaxis_tickangle=-45
         )
-        apply_mt_chart_style(fig_bar, theme)
+        fig_bar = apply_chart_style(fig_bar, theme, is_axial=True, chart_type="microtransformer")
         st.plotly_chart(fig_bar, use_container_width=True)
 
         # 3. Sankey diagram (token→expert flow)
         if show_sankey:
-            # Build Sankey: each token is a source node, each expert is a target node
             n_tokens = len(token_labels)
             n_experts_actual = len(expert_labels)
-            # Normalise routing weights to sum to 1 per token (they already do)
             sources = []
             targets = []
             values = []
             for i in range(n_tokens):
                 for j in range(n_experts_actual):
                     val = routing_np[i, j]
-                    if val > 0.01:  # threshold for readability
+                    if val > 0.01:
                         sources.append(i)
                         targets.append(n_tokens + j)
                         values.append(val)
-            # node labels: tokens then experts
             node_labels = token_labels + expert_labels
             fig_sankey = go.Figure(data=[go.Sankey(
                 node=dict(
@@ -6476,7 +6740,7 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
                 title="Token‑to‑Expert Flow (Sankey)",
                 font=dict(size=10, color=theme.get("font", "#000000"))
             )
-            apply_mt_chart_style(fig_sankey, theme, is_axial=False)
+            fig_sankey = apply_chart_style(fig_sankey, theme, is_axial=False, chart_type="microtransformer")
             st.plotly_chart(fig_sankey, use_container_width=True)
 
         # 4. Chord diagram (fallback to heatmap if not available)
@@ -6486,7 +6750,6 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
 
         # 5. Interpretation
         st.subheader("🧐 Scientific Interpretation")
-        # Identify top experts per token
         top_experts = []
         for i, token in enumerate(token_labels):
             expert_activations = routing_np[i]
@@ -6496,11 +6759,9 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
         st.markdown("**Top‑3 experts per token:**")
         st.markdown("\n".join(top_experts))
 
-        # Overall dominant expert
         overall_dominant = expert_labels[np.argmax(avg_per_expert)]
         st.markdown(f"**Overall dominant expert:** {overall_dominant} (avg activation {np.max(avg_per_expert):.3f})")
 
-        # Provide a system‑like explanation
         st.markdown("""
         The latent experts represent specialised reasoning patterns in battery science. 
         Higher activation indicates that the model relies on that expert's 'knowledge' 
@@ -7149,6 +7410,49 @@ class QDWAEngine:
 
         return reweighted
 
+    # ------------------------------------------------------------------------
+    # NEW: Compute category weights from a QueryAnalysisResult
+    # ------------------------------------------------------------------------
+    def compute_category_weights_for_analysis(
+        self, analysis: 'QueryAnalysisResult', query: str
+    ) -> List[Dict[str, Any]]:
+        """Compute QDWA weights and return list of {rank, category, W_k, raw_evidence, color}."""
+        # Extract terms from analysis or use query
+        terms = analysis.explicitly_mentioned if analysis.explicitly_mentioned else self.extract_terms(query)
+        # Compute soft memberships and raw evidence (reuse existing methods)
+        memberships = {term: self.soft_category_membership(term) for term in terms}
+        raw = self.compute_raw_evidence(query, terms, memberships, ontology_concepts=terms)
+        W = self.compute_smoothed_weights(raw)
+
+        # Build result list
+        category_display = {
+            "cathode_materials": "Cathode Materials",
+            "anode_materials": "Anode Materials",
+            "electrolyte_systems": "Electrolyte Systems",
+            "manufacturing": "Manufacturing",
+            "degradation": "Degradation",
+            "performance": "Performance Metrics",
+        }
+        category_colors = {
+            "cathode_materials": "#3b82f6",
+            "anode_materials": "#10b981",
+            "electrolyte_systems": "#8b5cf6",
+            "manufacturing": "#f59e0b",
+            "degradation": "#ef4444",
+            "performance": "#06b6d4",
+        }
+        result = []
+        sorted_cats = sorted(W.items(), key=lambda x: x[1], reverse=True)
+        for rank, (cat, w) in enumerate(sorted_cats, 1):
+            result.append({
+                "rank": rank,
+                "category": category_display.get(cat, cat),
+                "W_k": w,
+                "raw_evidence": raw.get(cat, 0.0),
+                "color": category_colors.get(cat, "#888888"),
+            })
+        return result
+
 
 # ============================================================================
 # QDWA VISUALIZATION MODULE
@@ -7160,7 +7464,7 @@ def render_qdwa_math_trace(
 ) -> None:
     """Display step-by-step mathematical computation trace."""
     if theme is None:
-        theme = {"font": "#1e293b", "bg": "#ffffff", "accent": "#3b82f6"}
+        theme = get_current_theme()
 
     st.markdown("### 🧮 QDWA Mathematical Computation Trace")
 
@@ -7260,7 +7564,7 @@ def render_qdwa_sankey(
 ) -> None:
     """Sankey diagram: Query → Terms → Categories → Allocation."""
     if theme is None:
-        theme = {"font": "#1e293b", "accent": "#3b82f6"}
+        theme = get_current_theme()
 
     st.markdown("### 🌊 QDWA Sankey: Query → Terms → Categories")
 
@@ -7334,12 +7638,7 @@ def render_qdwa_sankey(
             hovertemplate="<b>%{value:.4f}</b><extra></extra>",
         ),
     ))
-    fig.update_layout(
-        title="Query Distillation & Weighted Allocation Flow",
-        paper_bgcolor=theme.get("bg", "#fff"),
-        font_color=theme.get("font", "#000"),
-        height=500, margin=dict(l=20, r=20, t=50, b=20),
-    )
+    fig = apply_chart_style(fig, theme, is_axial=False, chart_type="qdwa")
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -7349,7 +7648,7 @@ def render_qdwa_radar_chart(
 ) -> None:
     """Radar/spider chart of category weights."""
     if theme is None:
-        theme = {"font": "#1e293b", "bg": "#ffffff"}
+        theme = get_current_theme()
 
     st.markdown("### 🕸️ QDWA Radar: Category Weight Distribution")
 
@@ -7414,6 +7713,7 @@ def render_qdwa_radar_chart(
         height=450,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
+    fig = apply_chart_style(fig, theme, is_axial=False, chart_type="qdwa")
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -7423,7 +7723,7 @@ def render_qdwa_bar_comparison(
 ) -> None:
     """Bar charts: Raw vs Smoothed, Entropy decomposition, K gauge."""
     if theme is None:
-        theme = {"font": "#1e293b", "bg": "#ffffff"}
+        theme = get_current_theme()
 
     st.markdown("### 📊 QDWA Bar Charts")
 
@@ -7444,11 +7744,7 @@ def render_qdwa_bar_comparison(
             title="Raw Evidence vs. Smoothed Weight W_k",
             color_discrete_sequence=["#94a3b8", "#3b82f6"],
         )
-        fig1.update_layout(
-            paper_bgcolor=theme.get("bg", "#fff"),
-            font_color=theme.get("font", "#000"),
-            xaxis_tickangle=-45,
-        )
+        fig1 = apply_chart_style(fig1, theme, is_axial=True, chart_type="qdwa")
         st.plotly_chart(fig1, use_container_width=True)
 
     with col2:
@@ -7470,6 +7766,7 @@ def render_qdwa_bar_comparison(
             font_color=theme.get("font", "#000"),
             height=400,
         )
+        fig2 = apply_chart_style(fig2, theme, is_axial=True, chart_type="qdwa")
         st.plotly_chart(fig2, use_container_width=True)
 
     # K-hop gauge
@@ -7500,6 +7797,7 @@ def render_qdwa_bar_comparison(
             font_color=theme.get("font", "#000"),
             height=280, margin=dict(l=20, r=20, t=50, b=20),
         )
+        fig3 = apply_chart_style(fig3, theme, is_axial=False, chart_type="qdwa")
         st.plotly_chart(fig3, use_container_width=True)
 
 
@@ -7509,7 +7807,7 @@ def render_qdwa_heatmap(
 ) -> None:
     """Heatmap: Term × Category membership matrix."""
     if theme is None:
-        theme = {"font": "#1e293b", "bg": "#ffffff"}
+        theme = get_current_theme()
 
     st.markdown("### 🔥 QDWA Heatmap: Term × Category Membership")
 
@@ -7524,7 +7822,7 @@ def render_qdwa_heatmap(
     fig = px.imshow(
         df.values,
         x=df.columns, y=df.index,
-        color_continuous_scale="Viridis",
+        color_continuous_scale=st.session_state.get("viz_heatmap_cmap", "viridis"),
         labels=dict(x="Category", y="Term", color="m_k(t)"),
         title="Soft Category Membership m_k(t) per Query Term",
         aspect="auto",
@@ -7533,9 +7831,11 @@ def render_qdwa_heatmap(
         hovertemplate="<b>Term:</b> %{y}<br><b>Category:</b> %{x}<br>"
                       "<b>m_k(t):</b> %{z:.4f}<extra></extra>"
     )
+    fig = apply_chart_style(fig, theme, is_axial=False, chart_type="qdwa")
     fig.update_layout(
-        paper_bgcolor=theme.get("bg", "#fff"),
-        font_color=theme.get("font", "#000"),
+        coloraxis_colorbar_title=st.session_state.get("viz_cbar_title", "Value"),
+        coloraxis_colorbar_thickness=st.session_state.get("viz_cbar_thickness", 14),
+        coloraxis_colorbar_len=st.session_state.get("viz_cbar_length", 0.8),
         height=max(300, len(df) * 40 + 100),
     )
     st.plotly_chart(fig, use_container_width=True)
@@ -7547,7 +7847,7 @@ def render_qdwa_chord_matrix(
 ) -> None:
     """Category × Category edge count matrix (chord-equivalent)."""
     if theme is None:
-        theme = {"font": "#1e293b", "bg": "#ffffff"}
+        theme = get_current_theme()
 
     st.markdown("### 🎯 QDWA Chord: Inter-Category Coupling")
 
@@ -7572,27 +7872,31 @@ def render_qdwa_chord_matrix(
     fig = ff.create_annotated_heatmap(
         matrix.tolist(),
         x=cat_labels, y=cat_labels,
-        colorscale="Blues",
+        colorscale=st.session_state.get("viz_heatmap_cmap", "Blues"),
         showscale=True,
         annotation_text=matrix.astype(int).tolist(),
     )
+    fig = apply_chart_style(fig, theme, is_axial=False, chart_type="qdwa")
     fig.update_layout(
         title="Category × Category Edge Count Matrix",
         paper_bgcolor=theme.get("bg", "#fff"),
         font_color=theme.get("font", "#000"),
         height=450,
         xaxis_tickangle=-45,
+        coloraxis_colorbar_title=st.session_state.get("viz_cbar_title", "Count"),
+        coloraxis_colorbar_thickness=st.session_state.get("viz_cbar_thickness", 14),
+        coloraxis_colorbar_len=st.session_state.get("viz_cbar_length", 0.8),
     )
     st.plotly_chart(fig, use_container_width=True)
 
-#
+
 def render_qdwa_energy_density_score(
     analysis: QDWAAnalysis,
     theme: Dict[str, str] = None,
 ) -> None:
     """Dedicated energy density relevance gauge."""
     if theme is None:
-        theme = {"font": "#1e293b", "bg": "#ffffff"}
+        theme = get_current_theme()
 
     st.markdown("### ⚡ Energy Density Enhancement Relevance")
 
@@ -7622,15 +7926,10 @@ def render_qdwa_energy_density_score(
                 },
             },
         ))
-        fig.update_layout(
-            paper_bgcolor=theme.get("bg", "#fff"),
-            font_color=theme.get("font", "#000"),
-            height=250, margin=dict(l=20, r=20, t=50, b=20),
-        )
+        fig = apply_chart_style(fig, theme, is_axial=False, chart_type="qdwa")
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        # Breakdown by category
         ed_weights = {
             "cathode_materials": 0.30,
             "anode_materials": 0.25,
@@ -7649,7 +7948,6 @@ def render_qdwa_energy_density_score(
                 "Contribution": w * factor,
             })
         contrib_df = pd.DataFrame(contrib)
-        # --- FIX: apply formatting only to numeric columns ---
         st.dataframe(
             contrib_df.style.format({
                 "W_k": "{:.4f}",
@@ -7663,6 +7961,37 @@ def render_qdwa_energy_density_score(
         )
 
 
+def render_qdwa_category_weights(
+    category_weights: List[Dict],
+    theme: Dict = None
+) -> None:
+    """Render QDWA category weights as a horizontal bar chart."""
+    if theme is None:
+        theme = get_current_theme()
+    if not category_weights:
+        st.info("No category weights to display.")
+        return
+    df = pd.DataFrame(category_weights)
+    cmap_name = st.session_state.get("viz_qdwa_cmap", "Blues")
+    fig = px.bar(
+        df, x="W_k", y="category", orientation="h",
+        color="W_k", color_continuous_scale=cmap_name,
+        text=df["W_k"].apply(lambda x: f"{x*100:.1f}%"),
+        category_orders={"category": df.sort_values("W_k", ascending=False)["category"].tolist()}
+    )
+    fig = apply_chart_style(fig, theme, chart_type="qdwa")
+    fig.update_layout(
+        xaxis_title="Weight (W_k)",
+        yaxis_title="",
+        xaxis_tickformat=".0%",
+        xaxis_range=[0, df["W_k"].max() * 1.15],
+        height=max(200, 40 * len(df)),
+        coloraxis_colorbar_title=st.session_state.get("viz_cbar_title", "Weight"),
+        coloraxis_colorbar_thickness=st.session_state.get("viz_cbar_thickness", 14),
+        coloraxis_colorbar_len=st.session_state.get("viz_cbar_length", 0.8),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
 
 def render_qdwa_full_dashboard(
     analysis: QDWAAnalysis,
@@ -7673,6 +8002,9 @@ def render_qdwa_full_dashboard(
     if analysis is None:
         st.warning("No QDWA analysis available. Run a query first.")
         return
+
+    if theme is None:
+        theme = get_current_theme()
 
     # Summary metrics at top
     col1, col2, col3, col4 = st.columns(4)
@@ -7826,12 +8158,7 @@ def render_qdwa_tab() -> None:
         return
 
     # Theme
-    theme_name = st.session_state.get("theme", "Bright (Default)")
-    theme = {
-        "font": "#1e293b",
-        "bg": "#ffffff",
-        "accent": "#3b82f6",
-    }
+    theme = get_current_theme()
 
     # Get graph if available
     graph = None
@@ -8649,6 +8976,10 @@ class QueryAnalysisResult:
     visualization_focus: List[str] = field(default_factory=list)
     reasoning_chain: List[str] = field(default_factory=list)
     confidence: float = 0.0
+    # NEW: QDWA category weights
+    category_weights: Optional[List[Dict[str, Any]]] = None  # list of {rank, category, W_k, raw_evidence, color}
+    analyzer_type: str = "fallback"
+    model_name: Optional[str] = None
 
     def get_top_concepts(self, n: int = 10) -> List[ConceptPriority]:
         return sorted(self.concept_priorities.values(), key=lambda x: x.composite_score, reverse=True)[:n]
@@ -8656,6 +8987,25 @@ class QueryAnalysisResult:
     def get_concepts_above_threshold(self, threshold: float = None) -> List[str]:
         thresh = threshold or self.priority_threshold
         return [name for name, cp in self.concept_priorities.items() if cp.composite_score >= thresh]
+
+    @property
+    def backend_display(self) -> str:
+        if self.analyzer_type == "ollama":
+            return f"🦙 Ollama ({self.model_name})"
+        elif self.analyzer_type == "huggingface":
+            short = self.model_name.split("/")[-1] if self.model_name else "?"
+            return f"🤗 HuggingFace ({short})"
+        elif self.analyzer_type == "openai":
+            return f"☁️ OpenAI ({self.model_name or 'gpt-4o-mini'})"
+        else:
+            return "⚡ Rule-based"
+
+    def get_category_summary(self, top_n: int = 3) -> str:
+        if not self.category_weights:
+            return "No category weights computed"
+        top = sorted(self.category_weights, key=lambda x: x.get("W_k", 0), reverse=True)[:top_n]
+        parts = [f"{c.get('category','?')} ({c.get('W_k',0)*100:.1f}%)" for c in top]
+        return "Top categories: " + ", ".join(parts)
 
 # ============================================================================
 # 2. LLM QUERY ANALYZERS (Abstract + Implementations)
@@ -8725,7 +9075,7 @@ class FallbackAnalyzer(LLMQueryAnalyzer):
             subgraph_depth=2, priority_threshold=0.3, focus_nodes=explicitly_mentioned[:5], bridge_nodes=inferred[:3],
             suggested_layout="force" if query_type != "comparison" else "bisected", highlight_paths=highlight_paths,
             visualization_focus=pdef.visualization_focus, reasoning_chain=[f"Query normalized: '{q}'", f"Primary problem: {primary.value}"],
-            confidence=min(sum(problem_scores.values()) / 3.0, 1.0)
+            confidence=min(sum(problem_scores.values()) / 3.0, 1.0), analyzer_type="fallback"
         )
 
 class OpenAIQueryAnalyzer(LLMQueryAnalyzer):
@@ -8785,7 +9135,8 @@ class OpenAIQueryAnalyzer(LLMQueryAnalyzer):
                 subgraph_depth=2, priority_threshold=0.3, focus_nodes=explicitly_mentioned[:5], bridge_nodes=inferred[:3],
                 suggested_layout="bisected" if parsed.get("query_type") == "comparison" else "force",
                 highlight_paths=[[p[0], p[1]] for p in parsed.get("highlight_paths", []) if len(p) >= 2],
-                visualization_focus=LIB_PROBLEM_DEFINITIONS[primary].visualization_focus, reasoning_chain=parsed.get("reasoning_chain", ["LLM analysis completed"]), confidence=0.85
+                visualization_focus=LIB_PROBLEM_DEFINITIONS[primary].visualization_focus, reasoning_chain=parsed.get("reasoning_chain", ["LLM analysis completed"]), confidence=0.85,
+                analyzer_type="openai", model_name=self.model
             )
         except Exception as e:
             st.warning(f"OpenAI analysis failed ({e}), falling back to rule-based.")
@@ -9322,7 +9673,20 @@ class QuerySessionManager:
     def record_query(cls, query: str, analysis: QueryAnalysisResult, mutations: Dict[str, Any]) -> None:
         session = cls.init_session()
         session["query_history"].append(query)
-        session["analysis_history"].append({"query": query, "primary_problem": analysis.primary_problem.value, "query_type": analysis.query_type, "concepts_found": len(analysis.all_relevant_concepts), "explicit": len(analysis.explicitly_mentioned), "inferred": len(analysis.inferred_concepts), "confidence": analysis.confidence, "timestamp": datetime.now().isoformat()})
+        entry = {
+            "query": query,
+            "primary_problem": analysis.primary_problem.value,
+            "query_type": analysis.query_type,
+            "concepts_found": len(analysis.all_relevant_concepts),
+            "explicit": len(analysis.explicitly_mentioned),
+            "inferred": len(analysis.inferred_concepts),
+            "confidence": analysis.confidence,
+            "timestamp": datetime.now().isoformat(),
+            "backend_display": analysis.backend_display,
+            "category_weights": analysis.category_weights,
+            "category_summary": analysis.get_category_summary() if hasattr(analysis, 'get_category_summary') else "N/A",
+        }
+        session["analysis_history"].append(entry)
         session["mutation_history"].append({"query": query, "concepts_added": len(mutations.get("concepts_added", [])), "relationships_added": len(mutations.get("relationships_added", [])), "bridges_created": len(mutations.get("bridges_created", [])), "timestamp": datetime.now().isoformat()})
         session["total_concepts_added"] += len(mutations.get("concepts_added", []))
         session["total_relationships_added"] += len(mutations.get("relationships_added", []))
@@ -9354,47 +9718,54 @@ def render_llm_query_panel(ontology: Any, expander: DynamicOntologyExpander, ful
     if mode in ("auto", "local"):
         st.sidebar.markdown("#### 🖥️ Local LLM Model")
 
-        # Detect Ollama once per call
-        _has_ollama = False
-        try:
-            _has_ollama = requests.get(
-                "http://localhost:11434/api/tags", timeout=2
-            ).status_code == 200
-        except Exception:
-            pass
-
-        if _has_ollama:
-            st.sidebar.caption("✅ Ollama detected on localhost:11434")
-            LOCAL_LLM_REGISTRY = {
-                "Fallback (Rule-based, no LLM)": None,
-                "qwen2.5:0.5b (Fastest, CPU OK)": "ollama:qwen2.5:0.5b",
-                "qwen2.5:1.5b (Balanced)":        "ollama:qwen2.5:1.5b",
-                "qwen2.5:7b (Recommended)":       "ollama:qwen2.5:7b",
-                "qwen2.5:14b (Max Reasoning)":    "ollama:qwen2.5:14b",
-                "llama3.1:8b (Meta Standard)":    "ollama:llama3.1:8b",
-                "mistral:7b (High JSON Reliability)": "ollama:mistral:7b",
-                "gemma2:9b (Scientific Nuance)":   "ollama:gemma2:9b",
-                "falcon3:10b (Instruction Following)": "ollama:falcon3:10b",
-            }
+        # Unified backend selection: radio for backend
+        ollama_available, ollama_models, ollama_status = check_ollama_available()
+        backend_options = ["🤗 HuggingFace (Cloud OK)"]
+        if ollama_available:
+            backend_options.append(f"🦙 Ollama (Local) - {len(ollama_models)} models")
         else:
-            st.sidebar.caption("⚠️ Streamlit Cloud ≈1 GB RAM. Pick a small model or use Fallback.")
-            LOCAL_LLM_REGISTRY = {
-                "Fallback (Rule-based, no LLM)": None,
-                "DistilGPT-2 (82M, fastest)": "distilgpt2",
-                "GPT-Neo-125M (125M)": "EleutherAI/gpt-neo-125M",
-                "Pythia-410M (410M, balanced)": "EleutherAI/pythia-410m",
-                "BLOOM-560M (560M, multilingual)": "bigscience/bloom-560m",
-                "Qwen2-0.5B-Instruct (500M, best JSON)": "Qwen/Qwen2-0.5B-Instruct",
-                "Qwen2.5-0.5B-Instruct (500M, newest)": "Qwen/Qwen2.5-0.5B-Instruct",
-            }
+            backend_options.append(f"🦙 Ollama (Local) - {ollama_status}")
+        backend_options.append("☁️ OpenAI API")
+        backend_options.append("⚡ Fallback (No LLM)")
 
-        model_display_names = list(LOCAL_LLM_REGISTRY.keys())
-        selected_display = st.sidebar.selectbox(
-            "Select model:", options=model_display_names, index=0,
-            key="local_model_select",
+        selected_backend_display = st.sidebar.radio(
+            "Select backend:", options=backend_options, index=0, horizontal=True, key="backend_radio"
         )
-        local_model = LOCAL_LLM_REGISTRY[selected_display]
+
+        if "Ollama" in selected_backend_display:
+            selected_backend = LLMBackend.OLLAMA if ollama_available else LLMBackend.FALLBACK
+            if ollama_available:
+                st.sidebar.success(f"🦙 Ollama: {len(ollama_models)} models available")
+            else:
+                st.sidebar.warning(ollama_status)
+        elif "HuggingFace" in selected_backend_display:
+            selected_backend = LLMBackend.HUGGINGFACE
+            st.sidebar.info("🤗 HuggingFace: Works on Streamlit Cloud")
+        elif "OpenAI" in selected_backend_display:
+            selected_backend = LLMBackend.OPENAI
+        else:
+            selected_backend = LLMBackend.FALLBACK
+            st.sidebar.info("⚡ Fallback: No LLM, rule-based only")
+
+        # Now select model based on backend
+        if selected_backend == LLMBackend.OLLAMA:
+            model_display_names = list(OLLAMA_MODELS.keys())
+            selected_display = st.sidebar.selectbox("Ollama model:", options=model_display_names, index=1, key="ollama_model_select")
+            local_model = OLLAMA_MODELS[selected_display]
+        elif selected_backend == LLMBackend.HUGGINGFACE:
+            model_display_names = list(HUGGINGFACE_MODELS.keys())
+            selected_display = st.sidebar.selectbox("HuggingFace model:", options=model_display_names, index=len(model_display_names)-1, key="hf_model_select")
+            local_model = HUGGINGFACE_MODELS[selected_display]
+            st.sidebar.caption("⚠️ Cloud: Use <1B params models")
+        elif selected_backend == LLMBackend.OPENAI:
+            # Already handled API key above
+            local_model = None  # OpenAI uses its own model
+        else:
+            local_model = None
+
         st.session_state['selected_local_model'] = local_model
+        model_info = get_model_info(local_model)
+        st.sidebar.caption(f"**Will use:** {model_info['icon']} {model_info['display_name']}")
 
     # --- end of dynamic local model block ---
 
@@ -9406,19 +9777,56 @@ def render_llm_query_panel(ontology: Any, expander: DynamicOntologyExpander, ful
     if not submitted or not query.strip(): return None
 
     factory = LLMQueryAnalyzerFactory()
-    analyzer = factory.get_analyzer(mode=mode, api_key=api_key, local_model=local_model)
+    # Determine the appropriate analyzer based on selected_backend and local_model
+    if selected_backend == LLMBackend.FALLBACK or local_model is None:
+        analyzer = factory.get_analyzer(mode="fallback")
+    elif selected_backend == LLMBackend.OLLAMA:
+        # Use OllamaQueryAnalyzer directly
+        analyzer = OllamaQueryAnalyzer(model_name=local_model, ontology=ontology)
+    elif selected_backend == LLMBackend.HUGGINGFACE:
+        # Use LocalLLMQueryAnalyzer with huggingface model
+        analyzer = factory.get_analyzer(mode="local", local_model=local_model)
+    elif selected_backend == LLMBackend.OPENAI:
+        analyzer = factory.get_analyzer(mode="openai", api_key=api_key)
+    else:
+        analyzer = factory.get_analyzer(mode="fallback")
 
-    if isinstance(analyzer, OpenAIQueryAnalyzer): st.sidebar.info("🤖 Using **OpenAI GPT-4o-mini**")
-    elif isinstance(analyzer, LocalLLMQueryAnalyzer): st.sidebar.info("🖥️ Using **Local LLM**")
-    else: st.sidebar.info("📋 Using **Rule-based fallback**")
+    if isinstance(analyzer, OpenAIQueryAnalyzer):
+        st.sidebar.info("🤖 Using **OpenAI GPT-4o-mini**")
+    elif isinstance(analyzer, LocalLLMQueryAnalyzer):
+        st.sidebar.info("🖥️ Using **Local LLM**")
+    elif isinstance(analyzer, OllamaQueryAnalyzer):
+        st.sidebar.info("🦙 Using **Ollama**")
+    else:
+        st.sidebar.info("📋 Using **Rule-based fallback**")
 
-    with st.spinner("🔍 Analyzing query via Ollama..."):
-        analysis = analyzer.analyze_query(query, ontology)
+    with st.spinner(model_info['spinner_msg']):
+        try:
+            analysis = analyzer.analyze_query(query, ontology)
+        except Exception as e:
+            st.error(f"❌ Analysis failed: {e}")
+            st.exception(e)
+            return None
     with st.spinner("🧬 Expanding ontology..."):
         mutations = expander.apply_query_analysis(analysis, analyzer)
 
+    # Attach QDWA category weights
+    try:
+        qdwa_engine = st.session_state.get("qdwa_engine")
+        if qdwa_engine is not None:
+            analysis.category_weights = qdwa_engine.compute_category_weights_for_analysis(analysis, query)
+        else:
+            # If QDWA engine not available, create temporary one
+            qdwa_engine = QDWAEngine(ontology)
+            analysis.category_weights = qdwa_engine.compute_category_weights_for_analysis(analysis, query)
+    except Exception as e:
+        st.warning(f"Could not compute QDWA weights: {e}")
+
     if hasattr(analyzer, 'unload_model'):
         analyzer.unload_model()
+    if isinstance(analyzer, OllamaQueryAnalyzer):
+        # No need to unload for Ollama
+        pass
     del analyzer
     gc.collect()
 
@@ -9432,7 +9840,7 @@ def render_llm_query_panel(ontology: Any, expander: DynamicOntologyExpander, ful
     st.session_state['last_query_dynamic_concepts'] = expander.session_concepts_added
     st.session_state['last_query_bridge_concepts'] = expander.query_bridge_concepts
 
-    # Additionally, run QDWA analysis on the query
+    # Run QDWA analysis
     run_qdwa_analysis(query, ontology_concepts=analysis.explicitly_mentioned + analysis.inferred_concepts)
 
     QuerySessionManager.record_query(query, analysis, mutations)
@@ -9478,6 +9886,15 @@ def render_query_history() -> None:
         for i, entry in enumerate(reversed(session["analysis_history"][-10:]), 1):
             st.sidebar.markdown(f"**{i}.** {entry['query'][:60]}...")
             st.sidebar.caption(f"  Problem: {entry['primary_problem']} | Type: {entry['query_type']} | Concepts: {entry['concepts_found']}")
+            # Show category summary
+            if entry.get("category_weights"):
+                summary = entry.get("category_summary", "")
+                st.sidebar.caption(f"  📊 {summary}")
+                # Optionally show mini bars
+                weights = entry["category_weights"]
+                top = weights[:3]
+                bar_str = " ".join([f"{c['category'][:8]}: {c['W_k']*100:.1f}%" for c in top])
+                st.sidebar.caption(f"  {bar_str}")
 
 def render_analysis_details(analysis: QueryAnalysisResult) -> None:
     st.markdown("## 📊 Query Analysis Results")
@@ -9660,6 +10077,8 @@ def main() -> None:
         st.session_state.qa_generator = GraphRAGAnswerGenerator(st.session_state.qa_factory.get_analyzer("auto"))
 
     render_sidebar()
+    # Render visualization customization panel inside sidebar
+    render_viz_customization_panel()
 
     if "analysis_data" not in st.session_state:
         st.session_state.analysis_data = None
