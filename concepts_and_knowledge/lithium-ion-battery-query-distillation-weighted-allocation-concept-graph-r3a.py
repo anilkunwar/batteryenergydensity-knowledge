@@ -3873,10 +3873,10 @@ def render_pyvis_graph(
     external_font_color="#333333",
     external_label_align="left",
 ) -> None:
-    # Use provided theme or fall back to "Default Light" (exists)
+    # --- Theme fallback: use "Default Light" instead of "Bright (Default)" ---
     if theme is None:
         theme = THEME_PRESETS.get("Default Light", THEME_PRESETS["Default Light"])
-    # Use provided physics preset or default
+    # --- Physics preset fallback ---
     if physics_preset is None:
         physics_preset = PHYSICS_PRESETS.get("Stable (Default)", PHYSICS_PRESETS["Stable (Default)"])
 
