@@ -9119,7 +9119,9 @@ def render_qdwa_energy_density_score(
             })
         contrib_df = pd.DataFrame(contrib)
         st.dataframe(
-            contrib_df.style.format("{:.4f}").background_gradient(
+            contrib_df.style.format(
+                "{:.4f}", subset=["W_k", "ED Factor", "Contribution"]
+            ).background_gradient(
                 subset=["Contribution"], cmap="Greens"
             ),
             use_container_width=True,
