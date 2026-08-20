@@ -6070,11 +6070,21 @@ def render_radar_chart(
         # Clean up metric name for legend display
         display_metric = metric.replace('_', ' ').title()
 
+        # Convert 6-digit hex to rgba for Plotly compatibility
+        hex_c = trace_colors[i]
+        if hex_c.startswith('#') and len(hex_c) == 7:
+            r = int(hex_c[1:3], 16)
+            g = int(hex_c[3:5], 16)
+            b = int(hex_c[5:7], 16)
+            rgba_fill = f"rgba({r}, {g}, {b}, 0.25)"
+        else:
+            rgba_fill = hex_c
+
         fig.add_trace(go.Scatterpolar(
             r=values_closed,
             theta=concepts_closed,
             fill='toself' if fill_radar else 'none',
-            fillcolor=trace_colors[i] + '40' if fill_radar else None,
+            fillcolor=rgba_fill if fill_radar else None,
             line=dict(color=trace_colors[i], width=line_width),
             name=display_metric,
             hovertemplate=f"<b>{display_metric}</b><br>Concept: %{{theta}}<br>Normalized Value: %{{r:.3f}}<extra></extra>"
