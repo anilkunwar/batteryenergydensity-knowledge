@@ -17,3 +17,12 @@ Model r1, r2, r3 and r4 run only in local computer, whereas r3a and r4a with par
 [![meaningtowords](https://img.shields.io/badge/libquerydistilledcg-v4.a-red)](https://lithium-ion-battery-query-distilled-concept-graph4a.streamlit.app/) (query is connected to domain category, customizations in QDWA and LatentMoE visualizations, query distillation + GNN + LatentMoE+QtNER, working , QD w/o weighted allocation of categorical impacts, customization to be made in the visualization)
 
 [![meaningtowords](https://img.shields.io/badge/libquerydistilledcg-v4.b-red)](https://lithium-ion-battery-query-distilled-concept-graph4b.streamlit.app/) (4a improved for custmization of concept radar, query is connected to domain category, customizations in QDWA and LatentMoE visualizations, query distillation + GNN + LatentMoE+QtNER, working , QD w/o weighted allocation of categorical impacts, customization to be made in the visualization)
+
+[![meaningtowords](https://img.shields.io/badge/libquerydistilledcg-v4.c-red)](https://lithium-ion-battery-query-distilled-concept-graph4c.streamlit.app/) (4a improved for custmization of concept radar and visualizations in QDWA and QtNER, query is connected to domain category, customizations in QDWA and LatentMoE visualizations, query distillation + GNN + LatentMoE+QtNER, working , QD w/o weighted allocation of categorical impacts, customization to be made in the visualization)
+
+[![meaningtowords](https://img.shields.io/badge/libquerydistilledcg-v4.d-red)](https://lithium-ion-battery-query-distilled-concept-graph4d.streamlit.app/) (4a improved for custmization of concept radar and visualizations in QDWA and QtNER, query is connected to domain category, customizations in QDWA and LatentMoE visualizations, query distillation + GNN + LatentMoE+QtNER, working , QD w/o weighted allocation of categorical impacts, customization to be made in the visualization)
+
+[![meaningtowords](https://img.shields.io/badge/libquerydistilledcg-v4.e-red)](https://lithium-ion-battery-query-distilled-concept-graph4e.streamlit.app/) (Improvement of NER analysis, 4a improved for custmization of concept radar and visualizations in QDWA and QtNER, query is connected to domain category, customizations in QDWA and LatentMoE visualizations, query distillation + GNN + LatentMoE+QtNER, working , QD w/o weighted allocation of categorical impacts, customization to be made in the visualization)
+
+
+
