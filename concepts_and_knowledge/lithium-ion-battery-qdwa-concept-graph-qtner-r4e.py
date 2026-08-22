@@ -11,6 +11,19 @@
 # ============================================================================
 import os
 import sys
+# ============================================================================
+# IMPORTS
+# ============================================================================
+import streamlit as st
+# ============================================================================
+# PAGE CONFIGURATION (MUST BE THE FIRST STREAMLIT COMMAND)
+# ============================================================================
+st.set_page_config(
+    page_title="Lithium‑Ion Battery Concept Graph v7.0 (QDWA)",
+    page_icon="⚖️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 # ============================================================================
 # FORCE CPU ONLY MODE
@@ -54,19 +67,7 @@ Run:
 Place JSON/BibTeX/CSV files in ./json_metadatabase/ folder next to this script.
 """
 
-# ============================================================================
-# IMPORTS
-# ============================================================================
-import streamlit as st
-# ============================================================================
-# PAGE CONFIGURATION (MUST BE THE FIRST STREAMLIT COMMAND)
-# ============================================================================
-st.set_page_config(
-    page_title="Lithium‑Ion Battery Concept Graph v7.0 (QDWA)",
-    page_icon="⚖️",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.sparse as sparse
