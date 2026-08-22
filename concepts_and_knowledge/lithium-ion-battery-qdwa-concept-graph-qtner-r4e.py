@@ -882,6 +882,26 @@ def lighten_hex_color(hex_color: str, factor: float) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
+def hex_to_rgba(hex_color: str, alpha_hex: str = "80") -> str:
+    """Convert #RRGGBB + 2-char hex alpha to Plotly-compatible rgba() string."""
+    if not hex_color or not hex_color.startswith("#"):
+        return hex_color
+    hc = hex_color.lstrip("#")
+    if len(hc) == 3:
+        hc = "".join([c * 2 for c in hc])
+    if len(hc) < 6:
+        return hex_color
+    try:
+        r = int(hc[0:2], 16)
+        g = int(hc[2:4], 16)
+        b = int(hc[4:6], 16)
+        a = int(alpha_hex, 16) / 255.0
+        return f"rgba({r},{g},{b},{a:.2f})"
+    except ValueError:
+        return hex_color
+
+
+
 @dataclass
 class ConceptNode:
     canonical_name: str
@@ -2373,7 +2393,7 @@ def apply_chart_style(
             y=-0.15 if "bottom" in legend_pos else (1.1 if "top" in legend_pos else 0.5),
             xanchor="center" if "bottom" in legend_pos or "top" in legend_pos else ("right" if "right" in legend_pos else "left"),
             font=dict(size=font_size - 1, color=theme.get("font", "#333333")),
-            bgcolor=theme.get("plotly_paper", "#ffffff") + "80",
+            bgcolor=hex_to_rgba(theme.get("plotly_paper", "#ffffff"), "80"),
             bordercolor=theme.get("grid_color", "#e0e0e0"),
             borderwidth=1,
         )
@@ -3460,7 +3480,7 @@ def render_category_radar_styled(category_weights: List[Dict]) -> None:
         r=values_closed,
         theta=categories_closed,
         fill='toself',
-        fillcolor=theme.get("accent", "#3b82f6") + "40",
+        fillcolor=hex_to_rgba(theme.get("accent", "#3b82f6"), "40"),
         line=dict(color=theme.get("accent", "#3b82f6"), width=2),
         marker=dict(size=8, color=theme.get("accent", "#3b82f6")),
         name="Category Weights"
