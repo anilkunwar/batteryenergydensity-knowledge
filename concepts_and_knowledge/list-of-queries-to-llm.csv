@@ -1,2 +1,4 @@
-s.n.,categories,queries,acronym
-1,Performance Metrics, Invesitgate the ways to increase the energy density of NMC811/graphite cells, Q1PM1
+s.n.,categories,queries,acronym, remarks
+1,Performance Metrics, Invesitgate the ways to increase the energy density of NMC811/graphite cells, Q1PM1, Performance Metrics + Cathode + Anode in Unmeasured Query
+2,Performance Metrics, Invesitgate the ways to increase the energy density of graphite cells, Q1PM1, Performance Metrics + Anode in Unmeasured Query
+3,Performance Metrics, Invesitgate the ways to increase the energy density of NMC811 cells, Q1PM1, Performance Metrics + Cathode  in Unmeasured Query
