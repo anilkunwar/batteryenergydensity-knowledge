@@ -371,12 +371,12 @@ def timed(func):
 # ============================================================================
 # PAGE CONFIGURATION
 # ============================================================================
-st.set_page_config(
-    page_title="Lithium‑Ion Battery Concept Graph v7.0 (QDWA)",
-    page_icon="⚖️",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+#st.set_page_config(
+#    page_title="Lithium‑Ion Battery Concept Graph v7.0 (QDWA)",
+#    page_icon="⚖️",
+#    layout="wide",
+#    initial_sidebar_state="expanded",
+#)
 
 
 # ============================================================================
