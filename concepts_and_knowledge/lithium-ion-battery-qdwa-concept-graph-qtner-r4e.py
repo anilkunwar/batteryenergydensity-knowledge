@@ -2357,10 +2357,10 @@ def apply_chart_style(
     padding = get_viz_padding()
    
     layout_updates = {
-        "font": dict(family=font_family, size=font_size, color=theme["font"]),
-        "title_font": dict(family=font_family, size=title_size, color=theme["font"]),
-        "paper_bgcolor": theme["plotly_paper"],
-        "plot_bgcolor": theme["plotly_bg"],
+        "font": dict(family=font_family, size=font_size, color=theme.get("font", "#333333")),
+        "title_font": dict(family=font_family, size=title_size, color=theme.get("font", "#333333")),
+        "paper_bgcolor": theme.get("plotly_paper", "#ffffff"),
+        "plot_bgcolor": theme.get("plotly_bg", "#f8f9fa"),
         "margin": padding,
         "showlegend": st.session_state.get("viz_show_legend", True),
     }
@@ -2372,9 +2372,9 @@ def apply_chart_style(
             x=0.5 if "bottom" in legend_pos or "top" in legend_pos else (1 if "right" in legend_pos else 0),
             y=-0.15 if "bottom" in legend_pos else (1.1 if "top" in legend_pos else 0.5),
             xanchor="center" if "bottom" in legend_pos or "top" in legend_pos else ("right" if "right" in legend_pos else "left"),
-            font=dict(size=font_size - 1, color=theme["font"]),
-            bgcolor=theme["plotly_paper"] + "80",
-            bordercolor=theme["grid_color"],
+            font=dict(size=font_size - 1, color=theme.get("font", "#333333")),
+            bgcolor=theme.get("plotly_paper", "#ffffff") + "80",
+            bordercolor=theme.get("grid_color", "#e0e0e0"),
             borderwidth=1,
         )
     else:
@@ -2385,13 +2385,13 @@ def apply_chart_style(
     if is_axial:
         axis_style = {
             "showgrid": show_grid,
-            "gridcolor": theme["grid_color"],
+            "gridcolor": theme.get("grid_color", "#e0e0e0"),
             "gridwidth": 0.5,
-            "tickfont": dict(family=font_family, size=font_size - 1, color=theme["axis_color"]),
-            "title_font": dict(family=font_family, size=font_size, color=theme["axis_color"]),
-            "zerolinecolor": theme["grid_color"],
+            "tickfont": dict(family=font_family, size=font_size - 1, color=theme.get("axis_color", "#666666")),
+            "title_font": dict(family=font_family, size=font_size, color=theme.get("axis_color", "#666666")),
+            "zerolinecolor": theme.get("grid_color", "#e0e0e0"),
             "zerolinewidth": 1,
-            "linecolor": theme["grid_color"],
+            "linecolor": theme.get("grid_color", "#e0e0e0"),
             "linewidth": 1,
         }
         try:
@@ -2429,12 +2429,12 @@ def _style_heatmap(fig, theme, font_family, font_size, override_cmap=None):
                 colorbar=dict(
                     title=dict(
                         text=cbar_title,
-                        font=dict(family=font_family, size=font_size + 1, color=theme["font"])
+                        font=dict(family=font_family, size=font_size + 1, color=theme.get("font", "#333333"))
                     ),
-                    tickfont=dict(family=font_family, size=max(8, font_size - 2), color=theme["axis_color"]),
+                    tickfont=dict(family=font_family, size=max(8, font_size - 2), color=theme.get("axis_color", "#666666")),
                     thickness=cbar_thickness,
                     outlinewidth=1,
-                    outlinecolor=theme["grid_color"],
+                    outlinecolor=theme.get("grid_color", "#e0e0e0"),
                     len=cbar_length,
                 )
             )
@@ -2450,7 +2450,7 @@ def _style_qdwa(fig, theme, font_family, font_size):
             if hasattr(trace, 'marker') and hasattr(trace.marker, 'coloraxis'):
                 pass
             elif hasattr(trace, 'marker'):
-                trace.marker.line = dict(width=1, color=theme["plotly_paper"])
+                trace.marker.line = dict(width=1, color=theme.get("plotly_paper", "#ffffff"))
         fig.update_layout(
             coloraxis_colorscale=cmap_key,
             coloraxis_colorbar_title="Weight (W_k)",
@@ -2471,9 +2471,9 @@ def _style_microtransformer(fig, theme, font_family, font_size, override_cmap=No
                 colorbar=dict(
                     title=dict(
                         text=cbar_title,
-                        font=dict(family=font_family, size=font_size + 1, color=theme["font"])
+                        font=dict(family=font_family, size=font_size + 1, color=theme.get("font", "#333333"))
                     ),
-                    tickfont=dict(family=font_family, size=max(8, font_size - 2), color=theme["axis_color"]),
+                    tickfont=dict(family=font_family, size=max(8, font_size - 2), color=theme.get("axis_color", "#666666")),
                     thickness=cbar_thickness,
                     outlinewidth=0,
                     len=cbar_length,
@@ -2489,7 +2489,7 @@ def _style_qtner(fig, theme, font_family, font_size):
     try:
         for trace in fig.data:
             if hasattr(trace, 'marker'):
-                trace.marker.line = dict(width=1, color=theme["plotly_paper"])
+                trace.marker.line = dict(width=1, color=theme.get("plotly_paper", "#ffffff"))
     except Exception:
         pass
 
@@ -2501,10 +2501,10 @@ def _style_bar(fig, theme, font_family, font_size):
                 trace.textfont = dict(
                     family=font_family,
                     size=font_size - 1,
-                    color=theme["plotly_paper"] if trace.marker.color else theme["font"]
+                    color=theme.get("plotly_paper", "#ffffff") if trace.marker.color else theme.get("font", "#333333")
                 )
             if hasattr(trace, 'marker'):
-                trace.marker.line = dict(width=0.5, color=theme["plotly_paper"])
+                trace.marker.line = dict(width=0.5, color=theme.get("plotly_paper", "#ffffff"))
     except Exception:
         pass
 
@@ -2515,16 +2515,16 @@ def _style_radar(fig, theme, font_family, font_size):
             polar=dict(
                 radialaxis=dict(
                     visible=True,
-                    tickfont=dict(size=font_size - 1, color=theme["axis_color"]),
-                    gridcolor=theme["grid_color"],
-                    linecolor=theme["grid_color"],
+                    tickfont=dict(size=font_size - 1, color=theme.get("axis_color", "#666666")),
+                    gridcolor=theme.get("grid_color", "#e0e0e0"),
+                    linecolor=theme.get("grid_color", "#e0e0e0"),
                 ),
                 angularaxis=dict(
-                    tickfont=dict(size=font_size, color=theme["font"]),
-                    gridcolor=theme["grid_color"],
-                    linecolor=theme["grid_color"],
+                    tickfont=dict(size=font_size, color=theme.get("font", "#333333")),
+                    gridcolor=theme.get("grid_color", "#e0e0e0"),
+                    linecolor=theme.get("grid_color", "#e0e0e0"),
                 ),
-                bgcolor=theme["plotly_bg"],
+                bgcolor=theme.get("plotly_bg", "#f8f9fa"),
             ),
         )
     except Exception:
@@ -2540,10 +2540,10 @@ def apply_mpl_style(ax: plt.Axes, theme: Optional[Dict[str, str]] = None) -> plt
         theme = get_current_theme()
     font_family = st.session_state.get("viz_font_family", "sans-serif").split(",")[0].strip().replace("'", "")
     font_size = int(st.session_state.get("viz_font_size", 11))
-    ax.set_facecolor(theme["plotly_bg"])
-    ax.tick_params(colors=theme["axis_color"], labelsize=font_size - 1)
-    ax.spines['bottom'].set_color(theme["grid_color"])
-    ax.spines['left'].set_color(theme["grid_color"])
+    ax.set_facecolor(theme.get("plotly_bg", "#f8f9fa"))
+    ax.tick_params(colors=theme.get("axis_color", "#666666"), labelsize=font_size - 1)
+    ax.spines['bottom'].set_color(theme.get("grid_color", "#e0e0e0"))
+    ax.spines['left'].set_color(theme.get("grid_color", "#e0e0e0"))
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     for label in ax.get_xticklabels() + ax.get_yticklabels():
@@ -2560,7 +2560,7 @@ def get_styled_mpl_figure(
     if figsize is None:
         figsize = (10, 6)
     fig, ax = plt.subplots(figsize=figsize)
-    fig.patch.set_facecolor(theme["plotly_paper"])
+    fig.patch.set_facecolor(theme.get("plotly_paper", "#ffffff"))
     return fig, ax
 
 
@@ -3460,9 +3460,9 @@ def render_category_radar_styled(category_weights: List[Dict]) -> None:
         r=values_closed,
         theta=categories_closed,
         fill='toself',
-        fillcolor=theme["accent"] + "40",
-        line=dict(color=theme["accent"], width=2),
-        marker=dict(size=8, color=theme["accent"]),
+        fillcolor=theme.get("accent", "#3b82f6") + "40",
+        line=dict(color=theme.get("accent", "#3b82f6"), width=2),
+        marker=dict(size=8, color=theme.get("accent", "#3b82f6")),
         name="Category Weights"
     ))
     fig = apply_chart_style(fig, theme, chart_type="radar", is_axial=False)
@@ -3472,7 +3472,7 @@ def render_category_radar_styled(category_weights: List[Dict]) -> None:
                 visible=True,
                 range=[0, max(values) * 1.2] if values else [0, 1],
             ),
-            bgcolor=theme["plotly_bg"],
+            bgcolor=theme.get("plotly_bg", "#f8f9fa"),
         ),
         showlegend=False,
         height=400,
@@ -5065,7 +5065,7 @@ def render_pyvis_graph(
 
     cmap_colors = get_colormap_colors(cmap_name, max(1, len(nx_graph.nodes())))
     
-    net = Network(height="780px", width="100%", bgcolor=theme['bg'], font_color=theme['font'],
+    net = Network(height="780px", width="100%", bgcolor=theme.get('bg', "#ffffff"), font_color=theme.get('font', "#333333"),
                   select_menu=True, notebook=False, cdn_resources='remote')
 
     if physics_enabled and physics_preset.get("gravity", 0) != 0:
@@ -5169,12 +5169,12 @@ def render_pyvis_graph(
         )
         
         net.add_node(node, label=label, size=size,
-                     color={'background': color, 'border': theme['node_border'],
-                            'highlight': {'background': theme['highlight_bg'], 'border': '#ffffff'},
-                            'hover': {'background': theme['hover_bg'], 'border': '#ffffff'}},
+                     color={'background': color, 'border': theme.get('node_border', "#f8fafc"),
+                            'highlight': {'background': theme.get('highlight_bg', "#ff6b6b"), 'border': '#ffffff'},
+                            'hover': {'background': theme.get('hover_bg', "#ffd93d"), 'border': '#ffffff'}},
                      font=font_dict, title=tooltip_content,
                      borderWidth=2, borderWidthSelected=3,
-                     shadow={'enabled': True, 'color': theme['shadow_color'],
+                     shadow={'enabled': True, 'color': theme.get('shadow_color', "rgba(0,0,0,0.15)"),
                              'size': 12, 'x': 4, 'y': 4},
                      shape=node_shape, mass=max(1, 1 + freq * 0.05))
 
@@ -5191,7 +5191,7 @@ def render_pyvis_graph(
             except ValueError: pass
 
         if edge_color_mode == "theme":
-            base_color = theme['edge_unknown'] if edge_type == 'unknown' else get_edge_color(rel_type)
+            base_color = theme.get('edge_unknown', "rgba(148,163,184,0.30)") if edge_type == 'unknown' else get_edge_color(rel_type)
             if edge_lightness > 0:
                 base_color = lighten_hex_color(base_color, edge_lightness)
         elif edge_color_mode == "uniform_grey":
@@ -5205,15 +5205,15 @@ def render_pyvis_graph(
 
         edge_kwargs = dict(
             value=float(np.clip(w, 0.5, 5)), width=width,
-            color={'color': base_color, 'highlight': theme['highlight_bg'], 'hover': theme['hover_bg'], 'opacity': 0.85},
+            color={'color': base_color, 'highlight': theme.get('highlight_bg', "#ff6b6b"), 'hover': theme.get('hover_bg', "#ffd93d"), 'opacity': 0.85},
             smooth={"type": "dynamic"},
             title=f"Weight: {w:.2f}\nType: {edge_type}\nInferred: {is_inferred}",
             dashes=dashes
         )
         if edge_label_mode == "all" or (edge_label_mode == "threshold" and w >= weight_threshold):
             edge_kwargs['label'] = f"{w:.1f}"
-            edge_kwargs['font'] = {'color': edge_label_color or theme['font'], 'size': int(edge_label_size),
-                                   'background': theme['tooltip_bg'], 'strokeWidth': 2, 'strokeColor': theme['node_border'],
+            edge_kwargs['font'] = {'color': edge_label_color or theme.get('font', "#333333"), 'size': int(edge_label_size),
+                                   'background': theme.get('tooltip_bg', "rgba(255,255,255,0.95)"), 'strokeWidth': 2, 'strokeColor': theme.get('node_border', "#f8fafc"),
                                    'align': edge_label_position, 'face': node_font_face}
         net.add_edge(u, v, **edge_kwargs)
         if rel_type not in used_rel_types:
@@ -5252,8 +5252,8 @@ def render_pyvis_graph(
 
     custom_css = f"""
     <style>
-    body {{ background: {theme['bg']}; margin: 0; padding: 0; font-family: '{node_font_face}', sans-serif; }}
-    #mynetwork {{ border-radius: 16px; box-shadow: 0 12px 48px {theme['shadow_color']}; outline: none; }}
+    body {{ background: {theme.get('bg', "#ffffff")}; margin: 0; padding: 0; font-family: '{node_font_face}', sans-serif; }}
+    #mynetwork {{ border-radius: 16px; box-shadow: 0 12px 48px {theme.get('shadow_color', "rgba(0,0,0,0.15)")}; outline: none; }}
     
     div.vis-tooltip {{
         max-width: 540px !important;
@@ -5524,7 +5524,7 @@ def render_graph_plotly_2d(
         ] * 2 + [None])
     edge_trace = go.Scatter(
         x=edge_x, y=edge_y, mode='lines',
-        line=dict(width=1, color=theme['edge_unknown']),
+        line=dict(width=1, color=theme.get('edge_unknown', "rgba(148,163,184,0.30)")),
         hoverinfo='text', hovertext=edge_hover, name='Connections',
     )
     node_x: List[float] = []
@@ -5553,10 +5553,10 @@ def render_graph_plotly_2d(
         x=node_x, y=node_y, mode='markers+text',
         marker=dict(
             size=node_size, color=node_color,
-            line=dict(width=2, color=theme['node_border']),
+            line=dict(width=2, color=theme.get('node_border', "#f8fafc")),
         ),
         text=node_labels, textposition="bottom center",
-        textfont=dict(size=node_label_size, color=theme['font']),
+        textfont=dict(size=node_label_size, color=theme.get('font', "#333333")),
         hovertext=node_text, hoverinfo='text', name='Concepts',
     )
     fig_data = [edge_trace, node_trace]
@@ -5569,7 +5569,7 @@ def render_graph_plotly_2d(
             fig_data.append(go.Scatter(
                 x=[mid_x], y=[mid_y], mode='text',
                 text=[f"{w:.1f}"],
-                textfont=dict(size=8, color=theme['font']),
+                textfont=dict(size=8, color=theme.get('font', "#333333")),
                 hoverinfo='skip', showlegend=False,
             ))
     fig = go.Figure(
@@ -5577,18 +5577,18 @@ def render_graph_plotly_2d(
         layout=go.Layout(
             showlegend=False, hovermode='closest',
             margin=dict(b=0, l=0, r=0, t=0),
-            plot_bgcolor=theme['plotly_bg'],
-            paper_bgcolor=theme['plotly_paper'],
-            font=dict(color=theme['font']),
+            plot_bgcolor=theme.get('plotly_bg', "#f8f9fa"),
+            paper_bgcolor=theme.get('plotly_paper', "#ffffff"),
+            font=dict(color=theme.get('font', "#333333")),
             xaxis=dict(
-                showgrid=True, gridcolor=theme['grid_color'],
+                showgrid=True, gridcolor=theme.get('grid_color', "#e0e0e0"),
                 zeroline=False, showticklabels=False,
-                linecolor=theme['axis_color'],
+                linecolor=theme.get('axis_color', "#666666"),
             ),
             yaxis=dict(
-                showgrid=True, gridcolor=theme['grid_color'],
+                showgrid=True, gridcolor=theme.get('grid_color', "#e0e0e0"),
                 zeroline=False, showticklabels=False,
-                linecolor=theme['axis_color'],
+                linecolor=theme.get('axis_color', "#666666"),
             ),
         ),
     )
@@ -5623,7 +5623,7 @@ def render_graph_plotly_3d(
         edge_z.extend([z0, z1, None])
     edge_trace = go.Scatter3d(
         x=edge_x, y=edge_y, z=edge_z, mode='lines',
-        line=dict(width=2, color=theme['edge_unknown']),
+        line=dict(width=2, color=theme.get('edge_unknown', "rgba(148,163,184,0.30)")),
         hoverinfo='skip',
     )
     node_x: List[float] = []
@@ -5652,7 +5652,7 @@ def render_graph_plotly_3d(
         x=node_x, y=node_y, z=node_z, mode='markers+text',
         marker=dict(size=node_size, color=node_color, opacity=0.9),
         text=node_labels, textposition="top center",
-        textfont=dict(size=8, color=theme['font']),
+        textfont=dict(size=8, color=theme.get('font', "#333333")),
         hovertext=node_text, hoverinfo='text',
     )
     fig_data = [edge_trace, node_trace]
@@ -5667,7 +5667,7 @@ def render_graph_plotly_3d(
             fig_data.append(go.Scatter3d(
                 x=[mid_x], y=[mid_y], z=[mid_z], mode='text',
                 text=[f"{w:.1f}"],
-                textfont=dict(size=7, color=theme['font']),
+                textfont=dict(size=7, color=theme.get('font', "#333333")),
                 hoverinfo='skip', showlegend=False,
             ))
     fig = go.Figure(
@@ -5676,23 +5676,23 @@ def render_graph_plotly_3d(
             scene=dict(
                 xaxis=dict(
                     showbackground=False,
-                    gridcolor=theme['grid_color'],
-                    linecolor=theme['axis_color'],
+                    gridcolor=theme.get('grid_color', "#e0e0e0"),
+                    linecolor=theme.get('axis_color', "#666666"),
                 ),
                 yaxis=dict(
                     showbackground=False,
-                    gridcolor=theme['grid_color'],
-                    linecolor=theme['axis_color'],
+                    gridcolor=theme.get('grid_color', "#e0e0e0"),
+                    linecolor=theme.get('axis_color', "#666666"),
                 ),
                 zaxis=dict(
                     showbackground=False,
-                    gridcolor=theme['grid_color'],
-                    linecolor=theme['axis_color'],
+                    gridcolor=theme.get('grid_color', "#e0e0e0"),
+                    linecolor=theme.get('axis_color', "#666666"),
                 ),
             ),
             margin=dict(l=0, r=0, b=0, t=0),
             showlegend=False,
-            paper_bgcolor=theme['plotly_paper'],
+            paper_bgcolor=theme.get('plotly_paper', "#ffffff"),
         ),
     )
     st.plotly_chart(fig, use_container_width=True)
@@ -6216,7 +6216,7 @@ def render_community_detection(
             edge_y.extend([y0, y1, None])
         edge_trace = go.Scatter(
             x=edge_x, y=edge_y, mode='lines',
-            line=dict(width=0.8, color=theme['edge_unknown']),
+            line=dict(width=0.8, color=theme.get('edge_unknown', "rgba(148,163,184,0.30)")),
             hoverinfo='none',
         )
         node_traces: List[go.Scatter] = []
@@ -6245,7 +6245,7 @@ def render_community_detection(
                     line=dict(width=1.5, color='white'),
                 ),
                 text=comm_nodes, textposition="bottom center",
-                textfont=dict(size=8, color=theme['font']),
+                textfont=dict(size=8, color=theme.get('font', "#333333")),
                 hovertext=node_text, hoverinfo='text',
                 name=f"Community {i} ({len(comm_nodes)})",
             )
@@ -6256,9 +6256,9 @@ def render_community_detection(
                 showlegend=True, hovermode='closest',
                 title=f"Community Detection ({len(communities)} communities)",
                 margin=dict(b=0, l=0, r=0, t=40),
-                plot_bgcolor=theme['plotly_bg'],
-                paper_bgcolor=theme['plotly_paper'],
-                font=dict(color=theme['font']),
+                plot_bgcolor=theme.get('plotly_bg', "#f8f9fa"),
+                paper_bgcolor=theme.get('plotly_paper', "#ffffff"),
+                font=dict(color=theme.get('font', "#333333")),
             ),
         )
         st.plotly_chart(fig, use_container_width=True)
