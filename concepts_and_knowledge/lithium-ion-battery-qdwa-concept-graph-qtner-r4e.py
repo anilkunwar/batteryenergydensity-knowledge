@@ -2153,7 +2153,7 @@ def build_query_whitelist(st_session):
         st.warning("No query analysis available – falling back to full graph.")
         return None
     whitelist = set(analysis.explicitly_mentioned)
-    whitelist.update(analysis.inferred_concepts)
+    whitelist.update(getattr(analysis, 'inferred_concepts', []))
     whitelist.update(st_session.get('last_query_dynamic_concepts', set()))
     whitelist.update(st_session.get('last_query_bridge_concepts', {}).keys())
     return whitelist
@@ -3240,12 +3240,12 @@ def render_llm_query_panel(
             st.caption(f"**Backend:** {model_info['icon']} {model_info['backend'].value}")
             st.caption(f"**Model:** `{model_info.get('model_name') or 'N/A'}`")
             st.caption(f"**Analyzer:** `{type(analyzer).__name__}`")
-            st.caption(f"**Concepts:** {len(analysis.key_concepts)}")
-            if analysis.category_weights:
+            st.caption(f"**Concepts:** {len(getattr(analysis, 'key_concepts', []))}")
+            if getattr(analysis, 'category_weights', None):
                 st.markdown("**📊 Domain Focus:**")
-                st.info(analysis.get_category_summary(top_n=3))
-                cols = st.columns(min(len(analysis.category_weights), 3))
-                for idx, cat in enumerate(analysis.category_weights[:3]):
+                _cat_summary = getattr(analysis, 'get_category_summary', None); st.info(_cat_summary(top_n=3) if _cat_summary else "No category summary available")
+                _cw = getattr(analysis, 'category_weights', []) or []; cols = st.columns(min(len(_cw), 3))
+                for idx, cat in enumerate(_cw[:3]):
                     with cols[idx]:
                         st.markdown(
                             f"""
@@ -12930,7 +12930,7 @@ def render_llm_query_panel(ontology: Any, expander: DynamicOntologyExpander, ful
     gc.collect()
 
     whitelist = set(analysis.explicitly_mentioned)
-    whitelist.update(analysis.inferred_concepts)
+    whitelist.update(getattr(analysis, 'inferred_concepts', []))
     whitelist.update(expander.session_concepts_added)
     whitelist.update(expander.query_bridge_concepts.keys())
     st.session_state['last_query_analysis'] = analysis
@@ -12940,13 +12940,13 @@ def render_llm_query_panel(ontology: Any, expander: DynamicOntologyExpander, ful
     st.session_state['last_query_bridge_concepts'] = expander.query_bridge_concepts
 
     # Additionally, run QDWA analysis on the query
-    run_qdwa_analysis(query, ontology_concepts=analysis.explicitly_mentioned + analysis.inferred_concepts)
+    run_qdwa_analysis(query, ontology_concepts=getattr(analysis, 'explicitly_mentioned', []) + getattr(analysis, 'inferred_concepts', []))
 
     QuerySessionManager.record_query(query, analysis, mutations)
 
-    st.sidebar.success(f"✅ Analysis complete (confidence: {analysis.confidence:.0%})")
-    st.sidebar.caption(f"Primary problem: **{analysis.primary_problem.value}**")
-    st.sidebar.caption(f"Explicit concepts: {len(analysis.explicitly_mentioned)} | Inferred: {len(analysis.inferred_concepts)}")
+    st.sidebar.success(f"✅ Analysis complete (confidence: {getattr(analysis, 'confidence', 0):.0%})")
+    _pp = getattr(analysis, 'primary_problem', None); _pp_str = _pp.value if hasattr(_pp, 'value') else str(_pp) if _pp else 'unknown'; st.sidebar.caption(f"Primary problem: **{_pp_str}**")
+    st.sidebar.caption(f"Explicit concepts: {len(getattr(analysis, 'explicitly_mentioned', []))} | Inferred: {len(getattr(analysis, 'inferred_concepts', []))}")
     if mutations["concepts_added"]:
         st.sidebar.warning(f"🆕 {len(mutations['concepts_added'])} new concept(s) added")
         for c in mutations["concepts_added"]: st.sidebar.markdown(f"  - `{c['name']}` ({c['type']})")
@@ -12989,14 +12989,14 @@ def render_query_history() -> None:
 def render_analysis_details(analysis: QueryAnalysisResult) -> None:
     st.markdown("## 📊 Query Analysis Results")
     with st.expander("🧠 Reasoning Chain", expanded=True):
-        for step in analysis.reasoning_chain: st.markdown(f"→ {step}")
+        for step in getattr(analysis, 'reasoning_chain', []): st.markdown(f"→ {step}")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Primary Problem", analysis.primary_problem.value.replace("_", " "))
-    col2.metric("Query Type", analysis.query_type)
-    col3.metric("Confidence", f"{analysis.confidence:.0%}")
+    _pp = getattr(analysis, 'primary_problem', None); _pp_str = _pp.value.replace("_", " ") if hasattr(_pp, 'value') else str(_pp) if _pp else 'unknown'; col1.metric("Primary Problem", _pp_str)
+    col2.metric("Query Type", getattr(analysis, 'query_type', 'unknown'))
+    col3.metric("Confidence", f"{getattr(analysis, 'confidence', 0):.0%}")
     
     st.markdown("### Concept Priority Rankings")
-    top = analysis.get_top_concepts(15)
+    _gtc = getattr(analysis, 'get_top_concepts', None); top = _gtc(15) if _gtc else []
     if top:
         df = pd.DataFrame([cp.to_dict() for cp in top])
         def highlight_row(row):
@@ -13033,7 +13033,7 @@ def render_llm_qa_tab(analysis_data: Dict, ontology: Any):
             mutations = expander.apply_query_analysis(analysis, analyzer)
 
             whitelist = set(analysis.explicitly_mentioned)
-            whitelist.update(analysis.inferred_concepts)
+            whitelist.update(getattr(analysis, 'inferred_concepts', []))
             whitelist.update(expander.session_concepts_added)
             whitelist.update(expander.query_bridge_concepts.keys())
             st.session_state['last_query_analysis'] = analysis
@@ -14251,7 +14251,7 @@ def main() -> None:
                 analysis = st.session_state.last_query_analysis
                 query_text = st.session_state.get('last_query_text', '')
                 st.info(f"**Query:** {query_text}")
-                st.info(f"**Primary Problem:** {analysis.problem_type}")
+                st.info(f"**Primary Problem:** {getattr(analysis, 'problem_type', 'Not specified')}")
             render_quantitative_tab()
 
 if __name__ == "__main__":
