@@ -13787,14 +13787,16 @@ def main() -> None:
                     font_family=st.session_state.get('sunburst_font_family', 'Inter, Segoe UI, Roboto, sans-serif'),
                     legend_font_size=st.session_state.get('sunburst_legend_font_size', 12),
                 )
-            with st.expander("Concept Radar"):
+            #
+            with st.container():
+                st.markdown("#### 🕸️ Concept Radar")
                 radar_k = st.session_state.get('top_n_radar', 15)
                 if radar_k == 0:
                     radar_k = min(15, len(distill_df))
                 render_radar_chart(
                     distill_df, top_k=radar_k, cmap_name=cmap, theme=theme,
                 )
-
+            
         # QDWA Tab
         tab_idx += 1
         with tabs[tab_idx]:
