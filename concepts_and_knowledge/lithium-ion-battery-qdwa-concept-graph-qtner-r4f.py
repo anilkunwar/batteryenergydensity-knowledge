@@ -9070,7 +9070,6 @@ def render_qdwa_sankey(
     """Enhanced Sankey diagram with readable labels and dynamic customization."""
     if custom_params is None:
         custom_params = render_qdwa_customization_panel()
-
     theme = custom_params.get("theme", theme)
     if theme is None:
         theme = {"font": "#1e293b", "bg": "#ffffff", "accent": "#3b82f6"}
@@ -9080,7 +9079,6 @@ def render_qdwa_sankey(
     font_family = custom_params.get("font_family", "Inter, Segoe UI, Roboto, sans-serif")
     padding = custom_params.get("padding", get_viz_padding())
     fig_height = custom_params.get("fig_height", 600)
-
     sankey_node_pad = custom_params.get("sankey_node_pad", 20)
     sankey_node_thickness = custom_params.get("sankey_node_thickness", 20)
     sankey_link_opacity = custom_params.get("sankey_link_opacity", 0.4)
@@ -9098,7 +9096,6 @@ def render_qdwa_sankey(
     term_indices = {}
     terms = list(analysis.term_memberships.keys())
     max_label_length = 18  # Truncate long labels
-
     for i, term in enumerate(terms):
         clean_term = term.replace("_", " ").title()
         if len(clean_term) > max_label_length:
@@ -9132,7 +9129,6 @@ def render_qdwa_sankey(
     labels.append("Final Weights")
     colors.append("#636efa")
     sink_idx = len(labels) - 1
-
     for cat in SIX_CATEGORIES:
         sources.append(cat_indices[cat])
         targets.append(sink_idx)
@@ -9150,6 +9146,8 @@ def render_qdwa_sankey(
         else:
             link_colors.append(f"rgba(100,100,100,{sankey_link_opacity})")
 
+    # FIXED: Removed 'font' from node=dict(...) as it is invalid for Sankey nodes.
+    # Font styling is correctly handled globally in fig.update_layout() below.
     fig = go.Figure(go.Sankey(
         arrangement="perpendicular",
         node=dict(
@@ -9158,11 +9156,6 @@ def render_qdwa_sankey(
             line=dict(color="white", width=0.5),
             label=labels,
             color=colors,
-            font=dict(
-                family=font_family,
-                size=max(10, font_size - 1),  # Slightly smaller than base font
-                color=theme.get("font", "#1e293b"),
-            ),
         ),
         link=dict(
             source=sources,
@@ -9181,7 +9174,12 @@ def render_qdwa_sankey(
         ),
         height=fig_height,
         paper_bgcolor=theme.get("plotly_paper", "#ffffff"),
-        font=dict(family=font_family, size=font_size, color=theme.get("font", "#1e293b")),
+        # Apply font settings globally to the layout (which cascades to Sankey nodes)
+        font=dict(
+            family=font_family, 
+            size=max(10, font_size - 1), 
+            color=theme.get("font", "#1e293b")
+        ),
         margin=padding,
     )
 
