@@ -24,5 +24,9 @@ Model r1, r2, r3 and r4 run only in local computer, whereas r3a and r4a with par
 
 [![meaningtowords](https://img.shields.io/badge/libquerydistilledcg-v4.e-red)](https://lithium-ion-battery-query-distilled-concept-graph4e.streamlit.app/) (Improvement of NER analysis, 4a improved for custmization of concept radar and visualizations in QDWA and QtNER, query is connected to domain category, customizations in QDWA and LatentMoE visualizations, query distillation + GNN + LatentMoE+QtNER, working , QD w/o weighted allocation of categorical impacts, customization to be made in the visualization)
 
+[![meaningtowords](https://img.shields.io/badge/libquerydistilledcg-v4.f-red)](https://lithium-ion-battery-query-distilled-concept-graph4f.streamlit.app/) (Code 4e with addition of customization features in QDWA visualization postprocessing, Improvement of NER analysis, 4a improved for custmization of concept radar and visualizations in QDWA and QtNER, query is connected to domain category, customizations in QDWA and LatentMoE visualizations, query distillation + GNN + LatentMoE+QtNER, working , QD w/o weighted allocation of categorical impacts, customization to be made in the visualization)
+
+
+
 
 
