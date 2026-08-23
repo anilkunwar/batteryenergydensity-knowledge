@@ -9644,6 +9644,71 @@ def render_qdwa_full_dashboard(
         render_qdwa_chord_matrix(graph, custom_params=custom_params)
 
 
+
+# ============================================================================
+# QDWA GLOBAL INSTANCE (initialize once)
+# ============================================================================
+
+@st.cache_resource
+def get_qdwa_engine(_ontology: DomainOntology) -> QDWAEngine:
+    """Get or create the QDWA engine (cached as resource)."""
+    try:
+        model = SentenceTransformer('all-MiniLM-L6-v2', device='cpu')
+    except Exception:
+        st.warning("SentenceTransformer not available, using keyword fallback.")
+        model = None
+    return QDWAEngine(_ontology, embedding_model=model)
+
+
+def initialize_qdwa_in_session():
+    """Initialize QDWA engine and store in session state."""
+    if "qdwa_engine" not in st.session_state:
+        ontology = st.session_state.get("ontology", DomainOntology())
+        st.session_state.qdwa_engine = get_qdwa_engine(ontology)
+
+    if "last_qdwa_analysis" not in st.session_state:
+        st.session_state.last_qdwa_analysis = None
+
+    if "last_query_text" not in st.session_state:
+        st.session_state.last_query_text = ""
+
+
+def run_qdwa_analysis(query: str, ontology_concepts: List[str] = None) -> QDWAAnalysis:
+    """Run QDWA and store results in session state."""
+    engine = st.session_state.get("qdwa_engine")
+    if engine is None:
+        initialize_qdwa_in_session()
+        engine = st.session_state.qdwa_engine
+
+    analysis = engine.analyze_query(query, ontology_concepts)
+
+    st.session_state.last_qdwa_analysis = analysis
+    st.session_state.last_query_text = query
+
+    return analysis
+
+
+def render_qdwa_sidebar_preview(analysis: QDWAAnalysis) -> None:
+    """Compact QDWA preview for sidebar."""
+    st.sidebar.markdown("#### ⚖️ QDWA Weights")
+    cols = st.sidebar.columns(3)
+    ranked = analysis.get_ranked_categories()
+    for i, (cat, w) in enumerate(ranked[:6]):
+        col = cols[i % 3]
+        short_name = CATEGORY_DISPLAY.get(cat, cat)
+        col.metric(short_name, f"{w:.2f}")
+
+    st.sidebar.caption(
+        f"c={analysis.concentration:.2f} → K={analysis.subgraph_depth}"
+    )
+
+    if st.sidebar.button(
+        "🔍 Open Full QDWA Dashboard",
+        key="open_qdwa_dashboard_btn",
+        use_container_width=True,
+    ):
+        st.session_state["show_qdwa_dashboard"] = True
+
 def render_qdwa_tab() -> None:
     """Full QDWA dashboard tab content."""
     st.header("⚖️ Query Distillation & Weighted Allocation")
