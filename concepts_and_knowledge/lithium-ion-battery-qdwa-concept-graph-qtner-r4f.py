@@ -9335,7 +9335,7 @@ def render_qdwa_bar_comparison(
             ),
             yaxis=dict(
                 title="Value",
-                titlefont=dict(family=font_family, size=font_size),
+                title=dict(font=dict(family=font_family, size=font_size)),
                 tickfont=dict(family=font_family, size=max(9, font_size - 1)),
             ),
             legend=dict(
@@ -9370,7 +9370,7 @@ def render_qdwa_bar_comparison(
             ),
             yaxis=dict(
                 title="nats",
-                titlefont=dict(family=font_family, size=font_size),
+                title=dict(font=dict(family=font_family, size=font_size)),
                 tickfont=dict(family=font_family, size=max(9, font_size - 1)),
             ),
             xaxis=dict(
