@@ -9281,7 +9281,7 @@ def render_qdwa_radar_chart(
 
     st.plotly_chart(fig, use_container_width=True)
 
-
+#
 def render_qdwa_bar_comparison(
     analysis: QDWAAnalysis,
     theme: Dict[str, str] = None,
@@ -9334,8 +9334,10 @@ def render_qdwa_bar_comparison(
                 tickfont=dict(family=font_family, size=max(9, font_size - 1)),
             ),
             yaxis=dict(
-                title="Value",
-                title=dict(font=dict(family=font_family, size=font_size)),
+                title=dict(
+                    text="Value",
+                    font=dict(family=font_family, size=font_size),
+                ),
                 tickfont=dict(family=font_family, size=max(9, font_size - 1)),
             ),
             legend=dict(
@@ -9369,8 +9371,10 @@ def render_qdwa_bar_comparison(
                 font=dict(family=font_family, size=title_size),
             ),
             yaxis=dict(
-                title="nats",
-                title=dict(font=dict(family=font_family, size=font_size)),
+                title=dict(
+                    text="nats",
+                    font=dict(family=font_family, size=font_size),
+                ),
                 tickfont=dict(family=font_family, size=max(9, font_size - 1)),
             ),
             xaxis=dict(
@@ -9383,7 +9387,6 @@ def render_qdwa_bar_comparison(
         )
 
         st.plotly_chart(fig2, use_container_width=True)
-
 
 def render_qdwa_heatmap(
     analysis: QDWAAnalysis,
