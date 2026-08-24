@@ -2349,8 +2349,9 @@ def get_viz_padding() -> Dict[str, int]:
 def get_colormap_with_reverse(cmap_key: str) -> str:
     """Get colormap name, handling reverse option."""
     base_key = cmap_key.replace("_r", "")
+    actual_cmap = st.session_state.get(f"viz_{base_key.lower()}_cmap", base_key)
     reverse = st.session_state.get(f"viz_{base_key.lower()}_cmap_reverse", False)
-    return f"{base_key}_r" if reverse else base_key
+    return f"{actual_cmap}_r" if reverse else actual_cmap
 
 
 # ============================================================================
@@ -8756,13 +8757,20 @@ def render_qdwa_customization_panel() -> Dict[str, Any]:
             st.session_state["viz_theme"] = theme_name
 
         with col2:
-            cmap_options = list(SUPPORTED_COLORMAPS.keys())
+            # FIXED: Use valid Plotly colorscales instead of matplotlib names
+            valid_colorscales = [
+                'Viridis', 'Plasma', 'Inferno', 'Magma', 'Cividis',
+                'Blues', 'Greens', 'Greys', 'Oranges', 'Reds',
+                'YlGn', 'YlGnBu', 'YlOrBr', 'YlOrRd',
+                'BuGn', 'BuPu', 'GnBu', 'OrRd', 'PuBu', 'PuBuGn', 'PuRd', 'RdPu',
+                'RdBu', 'RdGy', 'RdYlBu', 'RdYlGn', 'Spectral'
+            ]
             selected_cmap = st.selectbox(
-                "Colormap (50+ options)",
-                options=cmap_options,
-                index=cmap_options.index(
+                "Colormap (Plotly colorscales)",
+                options=valid_colorscales,
+                index=valid_colorscales.index(
                     st.session_state.get("viz_qdwa_cmap", "Blues")
-                ) if st.session_state.get("viz_qdwa_cmap", "Blues") in cmap_options else 0,
+                ) if st.session_state.get("viz_qdwa_cmap", "Blues") in valid_colorscales else 0,
                 key="qdwa_cmap_select",
             )
             st.session_state["viz_qdwa_cmap"] = selected_cmap
@@ -9146,8 +9154,7 @@ def render_qdwa_sankey(
         else:
             link_colors.append(f"rgba(100,100,100,{sankey_link_opacity})")
 
-    # FIXED: Removed 'font' from node=dict(...) as it is invalid for Sankey nodes.
-    # Font styling is correctly handled globally in fig.update_layout() below.
+    # FIXED: Add explicit font settings for Sankey nodes
     fig = go.Figure(go.Sankey(
         arrangement="perpendicular",
         node=dict(
@@ -9156,6 +9163,12 @@ def render_qdwa_sankey(
             line=dict(color="white", width=0.5),
             label=labels,
             color=colors,
+            # Explicit node label font for crisp rendering
+            labelfont=dict(
+                family=font_family,
+                size=max(11, font_size - 1),
+                color=theme.get("font", "#1e293b")
+            )
         ),
         link=dict(
             source=sources,
@@ -9167,6 +9180,7 @@ def render_qdwa_sankey(
         ),
     ))
 
+    # FIXED: Add layout font settings
     fig.update_layout(
         title=dict(
             text="Query Distillation & Weighted Allocation Flow",
@@ -9174,13 +9188,22 @@ def render_qdwa_sankey(
         ),
         height=fig_height,
         paper_bgcolor=theme.get("plotly_paper", "#ffffff"),
-        # Apply font settings globally to the layout (which cascades to Sankey nodes)
         font=dict(
-            family=font_family, 
-            size=max(10, font_size - 1), 
+            family=font_family,
+            size=max(11, font_size - 1),
             color=theme.get("font", "#1e293b")
         ),
         margin=padding,
+    )
+
+    # FIXED: Improve rendering quality via trace-level textfont
+    fig.update_traces(
+        selector=dict(type='sankey'),
+        textfont=dict(
+            family=font_family,
+            size=max(11, font_size - 1),
+            color=theme.get("font", "#1e293b")
+        )
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -9401,7 +9424,21 @@ def render_qdwa_heatmap(
     if theme is None:
         theme = {"font": "#1e293b", "bg": "#ffffff"}
 
+    # FIXED: Use valid Plotly colorscale instead of raw key
     cmap = custom_params.get("cmap", "Blues")
+
+    # Ensure cmap is a valid Plotly colorscale
+    valid_colorscales = [
+        'Viridis', 'Plasma', 'Inferno', 'Magma', 'Cividis',
+        'Blues', 'Greens', 'Greys', 'Oranges', 'Reds',
+        'YlGn', 'YlGnBu', 'YlOrBr', 'YlOrRd',
+        'BuGn', 'BuPu', 'GnBu', 'OrRd', 'PuBu', 'PuBuGn', 'PuRd', 'RdPu',
+        'RdBu', 'RdGy', 'RdYlBu', 'RdYlGn', 'Spectral',
+        'PiYG', 'PRGn', 'BrBG', 'PuOr'
+    ]
+    if cmap not in valid_colorscales and cmap.lower() not in [v.lower() for v in valid_colorscales]:
+        cmap = "Blues"
+
     font_size = custom_params.get("font_size", 11)
     title_size = custom_params.get("title_size", 15)
     font_family = custom_params.get("font_family", "Inter, Segoe UI, Roboto, sans-serif")
