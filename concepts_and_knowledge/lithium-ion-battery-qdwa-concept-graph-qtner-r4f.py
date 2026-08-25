@@ -9164,7 +9164,7 @@ def render_qdwa_sankey(
             label=labels,
             color=colors,
             # Explicit node label font for crisp rendering
-            labelfont=dict(
+            font=dict(
                 family=font_family,
                 size=max(11, font_size - 1),
                 color=theme.get("font", "#1e293b")
