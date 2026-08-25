@@ -8570,28 +8570,31 @@ class QDWAEngine:
         K = 2 + round(2c) ∈ {2, 3, 4}
         """
         return 2 + round(2 * c)
-
+    #
     def extract_terms(self, query: str) -> List[str]:
         """Extract domain-relevant terms from query text."""
         terms = []
-
-        # 1. Direct ontology concept matches
         query_lower = query.lower()
+        
+        # 1. Direct ontology concept matches (Using word boundaries \b)
         for canonical, node in self.ontology.concepts.items():
-            if node.is_match(query_lower):
+            # Check if canonical name is a whole word in the query
+            if re.search(r'\b' + re.escape(canonical) + r'\b', query_lower):
                 terms.append(canonical)
-            for syn in node.synonyms:
-                if syn in query_lower and canonical not in terms:
-                    terms.append(canonical)
-
-        # 2. Keyword-based extraction
+            else:
+                # Check synonyms with word boundaries to prevent "ce" matching "increase"
+                for syn in node.synonyms:
+                    if re.search(r'\b' + re.escape(syn) + r'\b', query_lower) and canonical not in terms:
+                        terms.append(canonical)
+                        
+        # 2. Keyword-based extraction (Using word boundaries \b)
         for cat, keywords in ENERGY_DENSITY_KEYWORDS.items():
             for kw in keywords:
-                if kw in query_lower:
+                if re.search(r'\b' + re.escape(kw) + r'\b', query_lower):
                     clean_term = kw.replace(" ", "_").replace("-", "_")
                     if clean_term not in terms:
                         terms.append(clean_term)
-
+    
         # 3. Numerical value extraction (e.g., "350 mAh/g")
         num_patterns = [
             r'(\d+(?:\.\d+)?)\s*mah/g',
