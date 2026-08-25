@@ -8138,8 +8138,8 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
             top_labels = [expert_labels[idx] for idx in top_indices]
             top_experts.append(f"**{token}** → {', '.join(top_labels)}")
         st.markdown("**Top‑3 experts per token:**")
-        st.markdown("
-".join(top_experts))
+        for te in top_experts:
+            st.markdown(te)
 
         overall_dominant = expert_labels[np.argmax(avg_per_expert)]
         st.markdown(f"**Overall dominant expert:** {overall_dominant} (avg activation {np.max(avg_per_expert):.3f})")
