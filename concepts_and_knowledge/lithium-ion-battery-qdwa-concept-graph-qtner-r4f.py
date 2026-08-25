@@ -9163,12 +9163,6 @@ def render_qdwa_sankey(
             line=dict(color="white", width=0.5),
             label=labels,
             color=colors,
-            # Explicit node label font for crisp rendering
-            font=dict(
-                family=font_family,
-                size=max(11, font_size - 1),
-                color=theme.get("font", "#1e293b")
-            )
         ),
         link=dict(
             source=sources,
@@ -9178,6 +9172,12 @@ def render_qdwa_sankey(
             hovertemplate="<b>%{source.label}</b> → <b>%{target.label}</b><br>"
                          "Weight: %{value:.4f}<extra></extra>",
         ),
+        # FIXED: textfont at go.Sankey trace level (not inside node=dict)
+        textfont=dict(
+            family=font_family,
+            size=max(11, font_size - 1),
+            color=theme.get("font", "#1e293b")
+        )
     ))
 
     # FIXED: Add layout font settings
