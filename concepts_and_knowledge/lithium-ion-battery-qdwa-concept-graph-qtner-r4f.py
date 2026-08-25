@@ -9103,7 +9103,8 @@ def render_qdwa_sankey(
     # Term nodes with truncated labels for readability
     term_indices = {}
     terms = list(analysis.term_memberships.keys())
-    max_label_length = 18  # Truncate long labels
+    #max_label_length = 18  # Truncate long labels
+    max_label_length = 50 # Truncate long labels
     for i, term in enumerate(terms):
         clean_term = term.replace("_", " ").title()
         if len(clean_term) > max_label_length:
