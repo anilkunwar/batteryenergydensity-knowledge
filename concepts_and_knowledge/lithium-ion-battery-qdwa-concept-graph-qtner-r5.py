@@ -7874,7 +7874,6 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
                         default_target = n
                         break
             if default_target is None:
-                # pick any other concept
                 for c in all_concepts:
                     if c != selected[0]:
                         default_target = c
@@ -7981,24 +7980,43 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
         theme = THEME_PRESETS.get(theme_name, THEME_PRESETS["Bright (Default)"])
         cmap_scale = plotly_continuous_scale(cmap_name, n=12)
 
-        # 1. Heatmap
+        # ── Postprocessing customization (call once, use everywhere) ──
+        post_params = render_microtransformer_postprocessing_panel()
+
+        # 1. Heatmap — uses postprocessing colormap
+        heatmap_cmap = post_params.get("cmap", "RdYlBu_r")
         fig_heat = px.imshow(
             routing_np,
             labels=dict(x="Expert", y="Token", color="Activation"),
             x=expert_labels,
             y=token_labels,
             title="Token‑wise Expert Activation",
-            color_continuous_scale=cmap_name,
+            color_continuous_scale=heatmap_cmap,
             aspect="auto"
         )
-        # Add custom hovertext: show expert labels
         fig_heat.update_traces(
             hovertemplate="<b>Token:</b> %{y}<br><b>Expert:</b> %{x}<br><b>Activation:</b> %{z:.3f}<extra></extra>"
         )
-        fig_heat = apply_chart_style(fig_heat, theme=theme, is_axial=False, chart_type="heatmap")
+        fig_heat.update_layout(
+            title=dict(
+                text="Token‑wise Expert Activation",
+                font=dict(
+                    family=post_params.get("font_family", "Inter, Segoe UI, Roboto, sans-serif"),
+                    size=post_params.get("title_size", 15),
+                    color=theme.get("font", "#000000")
+                )
+            ),
+            font=dict(
+                family=post_params.get("font_family", "Inter, Segoe UI, Roboto, sans-serif"),
+                size=post_params.get("font_size", 11),
+                color=theme.get("font", "#000000")
+            ),
+            margin=dict(l=100, r=60, t=80, b=120),
+        )
+        fig_heat = apply_chart_style(fig_heat, theme=theme, is_axial=False, chart_type="heatmap", override_cmap=heatmap_cmap)
         st.plotly_chart(fig_heat, use_container_width=True)
 
-        # 2. Bar chart (average per expert across tokens)
+        # 2. Bar chart — fixed overlap & dynamic text positioning
         avg_per_expert = routing_np.mean(axis=0)
         fig_bar = go.Figure()
         fig_bar.add_trace(go.Bar(
@@ -8006,54 +8024,103 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
             y=avg_per_expert,
             marker_color=cmap_scale[:len(expert_labels)],
             text=[f"{v:.3f}" for v in avg_per_expert],
-            textposition='outside',
+            textposition=post_params.get("bar_text_position", "outside"),
+            textfont=dict(
+                family=post_params.get("font_family", "Inter, Segoe UI, Roboto, sans-serif"),
+                size=post_params.get("bar_text_size", 10),
+                color=theme.get("font", "#000000")
+            ),
             hovertemplate="<b>%{x}</b><br>Avg Activation: %{y:.3f}<extra></extra>"
         ))
         fig_bar.update_layout(
-            title="Average Expert Activation (across all tokens)",
+            title=dict(
+                text="Average Expert Activation (across all tokens)",
+                font=dict(
+                    family=post_params.get("font_family", "Inter, Segoe UI, Roboto, sans-serif"),
+                    size=post_params.get("title_size", 15),
+                    color=theme.get("font", "#000000")
+                )
+            ),
             xaxis_title="Expert",
             yaxis_title="Activation",
-            xaxis_tickangle=-45
+            xaxis_tickangle=-45,
+            xaxis=dict(
+                tickfont=dict(
+                    family=post_params.get("font_family", "Inter, Segoe UI, Roboto, sans-serif"),
+                    size=max(8, post_params.get("font_size", 11) - 2)
+                )
+            ),
+            yaxis=dict(
+                tickfont=dict(
+                    family=post_params.get("font_family", "Inter, Segoe UI, Roboto, sans-serif"),
+                    size=max(8, post_params.get("font_size", 11) - 2)
+                ),
+                range=[0, max(avg_per_expert) * 1.15]
+            ),
+            margin=dict(l=60, r=60, t=80, b=120),
+            paper_bgcolor=theme.get("plotly_paper", "#ffffff"),
+            plot_bgcolor=theme.get("plotly_bg", "#ffffff"),
         )
         fig_bar = apply_chart_style(fig_bar, theme=theme, chart_type="bar")
         st.plotly_chart(fig_bar, use_container_width=True)
 
-        # 3. Sankey diagram (token→expert flow)
+        # 3. Sankey diagram — fixed font visibility at layout level
         if show_sankey:
-            # Build Sankey: each token is a source node, each expert is a target node
             n_tokens = len(token_labels)
             n_experts_actual = len(expert_labels)
-            # Normalise routing weights to sum to 1 per token (they already do)
+
             sources = []
             targets = []
             values = []
             for i in range(n_tokens):
                 for j in range(n_experts_actual):
                     val = routing_np[i, j]
-                    if val > 0.01:  # threshold for readability
+                    if val > 0.01:
                         sources.append(i)
                         targets.append(n_tokens + j)
                         values.append(val)
-            # node labels: tokens then experts
+
             node_labels = token_labels + expert_labels
+
             fig_sankey = go.Figure(data=[go.Sankey(
+                arrangement="perpendicular",
                 node=dict(
-                    pad=15,
-                    thickness=20,
+                    pad=post_params.get("sankey_node_pad", 20),
+                    thickness=post_params.get("sankey_node_thickness", 20),
                     line=dict(color="black", width=0.5),
                     label=node_labels,
-                    color=[theme.get("highlight_bg", "#ff6b6b")] * n_tokens + cmap_scale[:n_experts_actual]
+                    color=[theme.get("highlight_bg", "#ff6b6b")] * n_tokens + cmap_scale[:n_experts_actual],
                 ),
                 link=dict(
                     source=sources,
                     target=targets,
-                    value=values
-                )
+                    value=values,
+                    color=[f"rgba(100,100,100,{post_params.get('sankey_link_opacity', 0.4)})"] * len(sources),
+                    hovertemplate="<b>%{source.label}</b> → <b>%{target.label}</b><br>"
+                    "Activation: %{value:.4f}<extra></extra>",
+                ),
             )])
+
+            # CRITICAL FIX: Sankey node labels inherit from layout font, NOT trace textfont
             fig_sankey.update_layout(
-                title="Token‑to‑Expert Flow (Sankey)",
-                font=dict(size=10, color=theme.get("font", "#000000"))
+                title=dict(
+                    text="Token‑to‑Expert Flow (Sankey)",
+                    font=dict(
+                        family=post_params.get("font_family", "Inter, Segoe UI, Roboto, sans-serif"),
+                        size=post_params.get("title_size", 15),
+                        color=theme.get("font", "#000000")
+                    )
+                ),
+                font=dict(
+                    family=post_params.get("font_family", "Inter, Segoe UI, Roboto, sans-serif"),
+                    size=max(11, post_params.get("font_size", 11) - 1),
+                    color=theme.get("font", "#000000")
+                ),
+                paper_bgcolor=theme.get("plotly_paper", "#ffffff"),
+                plot_bgcolor=theme.get("plotly_bg", "#ffffff"),
+                margin=dict(l=100, r=100, t=80, b=80),
             )
+
             fig_sankey = apply_chart_style(fig_sankey, theme=theme, is_axial=False)
             st.plotly_chart(fig_sankey, use_container_width=True)
 
@@ -8064,7 +8131,6 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
 
         # 5. Interpretation
         st.subheader("🧐 Scientific Interpretation")
-        # Identify top experts per token
         top_experts = []
         for i, token in enumerate(token_labels):
             expert_activations = routing_np[i]
@@ -8072,9 +8138,9 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
             top_labels = [expert_labels[idx] for idx in top_indices]
             top_experts.append(f"**{token}** → {', '.join(top_labels)}")
         st.markdown("**Top‑3 experts per token:**")
-        st.markdown("\n".join(top_experts))
+        st.markdown("
+".join(top_experts))
 
-        # Overall dominant expert
         overall_dominant = expert_labels[np.argmax(avg_per_expert)]
         st.markdown(f"**Overall dominant expert:** {overall_dominant} (avg activation {np.max(avg_per_expert):.3f})")
 
@@ -8085,6 +8151,7 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
         scientific concepts (e.g., SEI formation, energy density) are most relevant 
         to the relationship between source and target.
         """)
+
 
 
 # ============================================================================
@@ -8968,6 +9035,125 @@ def render_qdwa_customization_panel() -> Dict[str, Any]:
         "sankey_node_thickness": sankey_node_thickness,
         "sankey_link_opacity": sankey_link_opacity,
     }
+
+
+
+def render_microtransformer_postprocessing_panel() -> Dict[str, Any]:
+    """Postprocessing customization panel for Microtransformer visualizations."""
+    with st.expander("🎨 Microtransformer Visualization Customization", expanded=False):
+        st.markdown("**Colormap & Theme**")
+        col1, col2 = st.columns(2)
+        with col1:
+            mt_cmap = st.selectbox(
+                "Colormap (Postprocessing)",
+                options=list(SUPPORTED_COLORMAPS.keys()),
+                index=list(SUPPORTED_COLORMAPS.keys()).index(
+                    st.session_state.get("viz_mt_cmap", "RdYlBu_r")
+                ) if st.session_state.get("viz_mt_cmap", "RdYlBu_r") in SUPPORTED_COLORMAPS else 0,
+                key="mt_post_cmap"
+            )
+            st.session_state["viz_mt_cmap"] = mt_cmap
+        with col2:
+            mt_cmap_reverse = st.checkbox(
+                "Reverse Colormap",
+                value=st.session_state.get("viz_mt_cmap_reverse", False),
+                key="mt_post_cmap_reverse"
+            )
+            st.session_state["viz_mt_cmap_reverse"] = mt_cmap_reverse
+
+        st.markdown("**Typography**")
+        col3, col4, col5 = st.columns(3)
+        with col3:
+            mt_font_size = st.slider(
+                "Font Size", 8, 24,
+                st.session_state.get("viz_font_size", 11),
+                key="mt_post_font_size"
+            )
+            st.session_state["viz_font_size"] = mt_font_size
+        with col4:
+            mt_title_size = st.slider(
+                "Title Size", 12, 32,
+                st.session_state.get("viz_title_size", 15),
+                key="mt_post_title_size"
+            )
+            st.session_state["viz_title_size"] = mt_title_size
+        with col5:
+            mt_font_family = st.selectbox(
+                "Font Family",
+                options=[
+                    "Inter, Segoe UI, Roboto, sans-serif",
+                    "Arial, Helvetica, sans-serif",
+                    "Georgia, serif",
+                    "Courier New, monospace",
+                    "Times New Roman, serif",
+                ],
+                index=0,
+                key="mt_post_font_family"
+            )
+            st.session_state["viz_font_family"] = mt_font_family
+
+        st.markdown("**Sankey Settings**")
+        col6, col7, col8 = st.columns(3)
+        with col6:
+            sankey_node_pad = st.slider(
+                "Node Padding", 5, 50, 20,
+                key="mt_post_sankey_pad"
+            )
+        with col7:
+            sankey_node_thickness = st.slider(
+                "Node Thickness", 10, 40, 20,
+                key="mt_post_sankey_thick"
+            )
+        with col8:
+            sankey_link_opacity = st.slider(
+                "Link Opacity", 0.1, 1.0, 0.4,
+                key="mt_post_sankey_opacity"
+            )
+
+        st.markdown("**Bar Chart Settings**")
+        col9, col10 = st.columns(2)
+        with col9:
+            bar_text_position = st.selectbox(
+                "Text Position",
+                ["outside", "inside", "auto", "none"],
+                index=0,
+                key="mt_post_bar_text_pos"
+            )
+        with col10:
+            bar_text_size = st.slider(
+                "Text Size", 6, 16, 10,
+                key="mt_post_bar_text_size"
+            )
+
+        # Preview colormap
+        preview_cmap = st.session_state.get("viz_mt_cmap", "RdYlBu_r")
+        colors = get_colormap_colors(preview_cmap.replace("_r", ""), 10)
+        st.markdown(
+            f"<div style='display:flex; height:15px; border-radius:3px; overflow:hidden;'>"
+            + "".join(f"<div style='flex:1; background:{c};'></div>" for c in colors)
+            + "</div>",
+            unsafe_allow_html=True
+        )
+
+        if st.button("🔄 Reset to Defaults", key="mt_post_reset"):
+            st.session_state["viz_mt_cmap"] = "RdYlBu_r"
+            st.session_state["viz_mt_cmap_reverse"] = False
+            st.session_state["viz_font_size"] = 11
+            st.session_state["viz_title_size"] = 15
+            st.rerun()
+
+    return {
+        "cmap": get_colormap_with_reverse("mt"),
+        "font_size": st.session_state.get("viz_font_size", 11),
+        "title_size": st.session_state.get("viz_title_size", 15),
+        "font_family": st.session_state.get("viz_font_family", "Inter, Segoe UI, Roboto, sans-serif"),
+        "sankey_node_pad": st.session_state.get("mt_post_sankey_pad", 20),
+        "sankey_node_thickness": st.session_state.get("mt_post_sankey_thick", 20),
+        "sankey_link_opacity": st.session_state.get("mt_post_sankey_opacity", 0.4),
+        "bar_text_position": st.session_state.get("mt_post_bar_text_pos", "outside"),
+        "bar_text_size": st.session_state.get("mt_post_bar_text_size", 10),
+    }
+
 
 
 def render_qdwa_math_trace(
