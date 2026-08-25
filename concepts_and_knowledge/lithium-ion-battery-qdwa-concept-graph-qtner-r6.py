@@ -13700,20 +13700,22 @@ def render_llm_qa_tab(analysis_data: Dict, ontology: Any):
     generator = st.session_state.qa_generator
 
     col1, col2 = st.columns([3, 1])
-    with col1: query = st.text_input("Enter your research question:", placeholder="e.g., How does electrode thickness affect energy density?")
+    with col1:
+        query = st.text_input("Enter your research question:", placeholder="e.g., How does electrode thickness affect energy density?")
 
-        # --- NEW: Dynamic Token Meter ---
-        local_model = st.session_state.get('selected_local_model')
-        meter_key = "openai" if mode == "openai" else (local_model if local_model else "fallback")
-        render_token_capacity_meter(meter_key, query)
-        # ---------------------------------
+    with col2:
+        mode = st.selectbox("Engine", ["auto", "openai", "local", "fallback"], index=0)
 
-        # Show the post-error warning if it actually crashed
-        if st.session_state.get('llm_token_warning'):
-            st.error(st.session_state['llm_token_warning'])
-            del st.session_state['llm_token_warning']
-    with col2: mode = st.selectbox("Engine", ["auto", "openai", "local", "fallback"], index=0)
-        
+    # --- NEW: Dynamic Token Meter ---
+    local_model = st.session_state.get('selected_local_model')
+    meter_key = "openai" if mode == "openai" else (local_model if local_model else "fallback")
+    render_token_capacity_meter(meter_key, query)
+    # ---------------------------------
+
+    # Show the post-error warning if it actually crashed
+    if st.session_state.get('llm_token_warning'):
+        st.error(st.session_state['llm_token_warning'])
+        del st.session_state['llm_token_warning']
     if st.button("🔍 Analyze & Answer", type="primary"):
         if not query.strip(): st.warning("Please enter a query."); return
             
