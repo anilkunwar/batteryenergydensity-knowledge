@@ -8186,11 +8186,16 @@ def render_microtransformer_kg_rag_tab(analysis_data: Dict, ontology: DomainOnto
         margin=dict(l=60, r=60, t=80, b=120),
         paper_bgcolor=theme.get("plotly_paper", "#ffffff"),
         plot_bgcolor=theme.get("plotly_bg", "#ffffff"),
-        # ─── CRITICAL FIX: Disable legend to prevent "trace_0" overlap ───
-        showlegend=show_bar_legend,  # ← NEW: controlled by checkbox
     )
 
     fig_bar = apply_chart_style(fig_bar, theme=theme, chart_type="bar")
+
+    # ─── CRITICAL FIX: Re-apply showlegend AFTER apply_chart_style ───
+    # apply_chart_style() overrides showlegend with viz_show_legend from session state.
+    # We must set it again here to respect the checkbox value.
+    fig_bar.update_layout(showlegend=show_bar_legend)
+    # ──────────────────────────────────────────────────────────────────
+
     st.plotly_chart(fig_bar, use_container_width=True)# 3. Sankey diagram — FIXED: pure dark text, no stroke blur
     if show_sankey:
         n_tokens = len(token_labels)
