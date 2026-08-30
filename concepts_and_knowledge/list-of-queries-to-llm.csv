@@ -2,6 +2,8 @@ s.n.,categories,queries,acronym, remarks
 1,Performance Metrics, Invesitgate the ways to increase the energy density of NMC811/graphite cells, Q1PM1, Performance Metrics + Cathode + Anode in Unmeasured Query
 2,Performance Metrics, Invesitgate the ways to increase the energy density of graphite cells, Q2PM1, Performance Metrics + Anode in Unmeasured Query
 3,Performance Metrics, Invesitgate the ways to increase the energy density of NMC811 cells, Q3PM1, Performance Metrics + Cathode  in Unmeasured Query
-4,Anode Materials,"Assess the efficacy of silicon-graphite composite architectures and prelithiation protocols
+4,Performance Metrics,"Assess the efficacy of silicon-graphite composite architectures and prelithiation protocols
 in overcoming volumetric expansion limits to unlock the theoretical specific capacity
 and cell-level energy density of lithium-ion batteries",Q4PM1,Performance Metrics + Anode Materials in Unmeasured Query
+5,Performance Metrics, Innovative approaches for  increasing specific energy of batteries beyond 500 W h/kg, Q4PM1, Performance Metrics  
+
