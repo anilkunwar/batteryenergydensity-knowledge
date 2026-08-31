@@ -33,7 +33,10 @@ def plot_dual_axis(df, use_rounded, bar_color, line_color, marker_style,
     ax1.set_xlabel("Category", fontsize=font_size)
     ax1.set_ylabel("Raw Evidence (raw_k)", fontsize=font_size, color=bar_color)
     ax1.tick_params(axis='y', labelcolor=bar_color, labelsize=font_size)
-    ax1.tick_params(axis='x', labelsize=font_size, rotation=45, ha='right')
+
+    # ✅ FIXED: rotation via labelrotation, alignment via plt.setp
+    ax1.tick_params(axis='x', labelsize=font_size, labelrotation=45)
+    plt.setp(ax1.get_xticklabels(), ha='right', rotation_mode='anchor')
 
     # Right axis
     ax2 = ax1.twinx()
@@ -52,7 +55,6 @@ def plot_dual_axis(df, use_rounded, bar_color, line_color, marker_style,
     ax1.set_title(f"Dual‑Axis Chart – {version} Data", fontsize=font_size+2)
 
     # Legends combined
-    # Create a single legend with both handles
     handles, labels = ax1.get_legend_handles_labels()
     handles2, labels2 = ax2.get_legend_handles_labels()
     ax1.legend(handles + handles2, labels + labels2, loc='upper left', fontsize=font_size-2)
@@ -66,7 +68,8 @@ def get_image_download_link(fig, dpi):
     fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight")
     buf.seek(0)
     b64 = base64.b64encode(buf.read()).decode()
-    href = f'<a href="data:image/png;base64,{b64}" download="slope_chart.png">Download PNG</a>'
+    # Updated filename to reflect chart type
+    href = f'<a href="data:image/png;base64,{b64}" download="dual_axis_chart.png">Download PNG</a>'
     return href
 
 # ------------------- STREAMLIT UI -------------------
