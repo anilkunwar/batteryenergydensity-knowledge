@@ -60,6 +60,10 @@ def plot_slope_chart(
     xlabel_text,
     ylabel_text,
     show_hover,
+    # NEW axes styling
+    spine_width,
+    tick_length,
+    tick_width,
 ):
     n = len(df_active)
     if n == 0:
@@ -169,13 +173,23 @@ def plot_slope_chart(
 
     ax.grid(show_grid, linestyle="--", alpha=0.4, color=grid_color)
 
-    # clean spines
+    # ---- spines styling (NEW) ----
+    for spine in ax.spines.values():
+        spine.set_linewidth(spine_width)
+        spine.set_color(spine_color)
+    # Remove top and right spines completely (optional: still set width but we hide them)
     for spine in ["top", "right"]:
         ax.spines[spine].set_visible(False)
-    for spine in ["bottom", "left"]:
-        ax.spines[spine].set_color(spine_color)
 
-    ax.tick_params(axis="both", labelsize=font_size, colors=text_color)
+    # ---- ticks styling (NEW) ----
+    ax.tick_params(
+        axis="both",
+        labelsize=font_size,
+        colors=text_color,
+        length=tick_length,
+        width=tick_width,
+    )
+
     ax.set_xlim(0.5, 2.5)
 
     # ---- LEGEND ----
@@ -300,6 +314,11 @@ with st.sidebar:
             ["best", "upper right", "upper left", "lower left", "lower right", "center"],
             index=4,
         )
+        # NEW: spine & tick controls
+        st.markdown("**Axes styling**")
+        spine_width = st.slider("Spine (border) width", 0.5, 5.0, 1.0, 0.1)
+        tick_length = st.slider("Tick length (points)", 2, 20, 6, 1)
+        tick_width = st.slider("Tick line width", 0.5, 5.0, 1.0, 0.1)
 
     with st.expander("✏️ Titles & Labels", expanded=False):
         title_text = st.text_input("Chart Title", "Slope Chart — Material Occurrences Over Time")
@@ -359,6 +378,9 @@ fig = plot_slope_chart(
     xlabel_text,
     ylabel_text,
     show_hover,
+    spine_width,
+    tick_length,
+    tick_width,
 )
 
 # ---- export button ----
