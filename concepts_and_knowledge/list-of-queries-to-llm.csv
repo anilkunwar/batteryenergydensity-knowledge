@@ -7,5 +7,8 @@ in overcoming volumetric expansion limits to unlock the theoretical specific cap
 and cell-level energy density of lithium-ion batteries",Q4PM1,Performance Metrics + Anode Materials in Unmeasured Query
 5,Performance Metrics, Innovative approaches for  increasing specific energy of batteries beyond 500 W h/kg, Q5PM1, Performance Metrics  
 6,Anode Materials, Overcoming silicon anode volume expansion to maintain cycle life, Q1AM2, Anode Materials
-6,Cathode Materials, Mitigating cation mixing in NMC811 cathodes to preserve specific capacity, Q1CM2, Cathode Materials
+7,Cathode Materials, Mitigating cation mixing in NMC811 cathodes to preserve specific capacity, Q1CM3, Cathode Materials
+8,Manufacturing, What are the effects of calendering pressure and slot coating  on electrode densification? , Q1M4, Manufacturing
+9,Degradation, Mechanisms of SEI growth and transition metal dissolution driving capacity fade, Q1D5, Degradation 
+10,Electrolyte Systems, To optimize FEC additives and solid electrolytes for high rate capability, Q1ES6,  Electrolyte Systems 
 
