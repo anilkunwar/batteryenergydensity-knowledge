@@ -11,3 +11,8 @@
 
 [![meaningtowords](https://img.shields.io/badge/q1pm1qdwa-v2.0-green)](https://domain-qwda-weights-allocation2.streamlit.app/) (Advanced Visuals, QDWA for the Query Q1PM1 - "Invesitgate the ways to increase the energy density of NMC811/graphite cells")
 
+## Q5PM1 : 	Innovative approaches for increasing specific energy of batteries beyond 500 W h/kg
+
+
+[![meaningtowords](https://img.shields.io/badge/q5pm1qdwa-v2.0-green)](https://performance-metricsq5pm1-domain-qwda-weights-allocation3.streamlit.app/) (Advanced Visuals, QDWA for the Query Q5PM1 - "Innovative approaches for increasing specific energy of batteries beyond 500 W h/kg")
+
