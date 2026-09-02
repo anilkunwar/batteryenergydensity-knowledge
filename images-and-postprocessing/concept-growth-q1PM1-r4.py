@@ -35,7 +35,7 @@ def get_all_colormaps():
 ALL_CMAPS = get_all_colormaps()
 
 # ═══════════════════════════════════════════════════════════════
-#  BACKGROUND PRESETS (3-color shade palettes)
+#  BACKGROUND PRESETS
 # ═══════════════════════════════════════════════════════════════
 BG_PRESETS = {
     "None":           ("#FFFFFF", "#FFFFFF", "#FFFFFF"),
@@ -76,8 +76,8 @@ MARKER_STYLE    = {"NMC811": "o",       "Silicon": "s",       "Graphite": "D"}
 # ═══════════════════════════════════════════════════════════════
 #  HELPER — Quadratic Bézier curved line
 # ═══════════════════════════════════════════════════════════════
-def make_curved_line(x1, y1, x2, y2, curvature=0.0, n=80):
-    t  = np.linspace(0, 1, n)
+def make_curved_line(x1, y1, x2, y2, curvature=0.0, n_pts=80):
+    t  = np.linspace(0, 1, n_pts)
     cx = (x1 + x2) / 2
     cy = (y1 + y2) / 2 + curvature * max(abs(y2 - y1), 1)
     x  = (1 - t)**2 * x1 + 2 * (1 - t) * t * cx + t**2 * x2
@@ -88,6 +88,7 @@ def make_curved_line(x1, y1, x2, y2, curvature=0.0, n=80):
 #  MAIN PLOT FUNCTION
 # ═══════════════════════════════════════════════════════════════
 def plot_slope_chart(df_active, **kw):
+    # --- labels ---
     show_left   = kw.get("show_left_labels",  True)
     show_right  = kw.get("show_right_labels", True)
     show_sym    = kw.get("show_symbols",      True)
@@ -95,28 +96,34 @@ def plot_slope_chart(df_active, **kw):
     label_oy    = kw.get("label_offset_y",    0)
     label_bg    = kw.get("label_bg",          False)
     label_rot   = kw.get("label_rotation",    0)
+    conn_lines  = kw.get("connector_lines",   False)
 
+    # --- line ---
     line_w      = kw.get("line_width",   3.0)
     curv        = kw.get("curvature",    0.0)
     line_alpha  = kw.get("line_alpha",   0.85)
     show_arrow  = kw.get("show_arrow",   False)
 
-    use_cmap    = kw.get("use_cmap",     False)
-    cmap_name   = kw.get("cmap_name",    "viridis")
-    show_cbar   = kw.get("show_colorbar",True)
-    cmap_reverse= kw.get("cmap_reverse", False)
+    # --- colormap ---
+    use_cmap     = kw.get("use_cmap",      False)
+    cmap_name    = kw.get("cmap_name",     "viridis")
+    show_cbar    = kw.get("show_colorbar", True)
+    cmap_reverse = kw.get("cmap_reverse",  False)
 
-    cust_col    = kw.get("custom_colors",    DEFAULT_PALETTE)
-    ln_styles   = kw.get("line_styles",      {})
-    mk_over     = kw.get("marker_overrides", MARKER_STYLE)
+    # --- per-material ---
+    cust_col = kw.get("custom_colors",    DEFAULT_PALETTE)
+    ln_styles= kw.get("line_styles",      {})
+    mk_over  = kw.get("marker_overrides", MARKER_STYLE)
 
-    tri_bg      = kw.get("three_color_bg",        False)
-    bg1         = kw.get("bg_color1",             "#FFE5B4")
-    bg2         = kw.get("bg_color2",             "#FF7F50")
-    bg3         = kw.get("bg_color3",             "#CD5C5C")
-    bg_alpha    = kw.get("bg_gradient_alpha",     0.15)
-    bg_dir      = kw.get("bg_gradient_direction", "Vertical (Top→Bottom)")
+    # --- gradient bg ---
+    tri_bg  = kw.get("three_color_bg",        False)
+    bg1     = kw.get("bg_color1",             "#FFE5B4")
+    bg2     = kw.get("bg_color2",             "#FF7F50")
+    bg3     = kw.get("bg_color3",             "#CD5C5C")
+    bg_alpha= kw.get("bg_gradient_alpha",     0.15)
+    bg_dir  = kw.get("bg_gradient_direction", "Vertical (Top→Bottom)")
 
+    # --- axes box (drawn ON the axes itself) ---
     box_on      = kw.get("box_visible",       True)
     box_col     = kw.get("box_color",         "#888888")
     box_w       = kw.get("box_width",         2.0)
@@ -127,41 +134,44 @@ def plot_slope_chart(df_active, **kw):
     box_fill_col= kw.get("box_fill_color",    "#FFFFFF")
     box_fill_al = kw.get("box_fill_alpha",    0.05)
 
-    hi_star     = kw.get("highlight_star",    True)
-    shad_alpha  = kw.get("shadow_alpha",      0.25)
-    ann_mat     = kw.get("annotate_material", None)
+    # --- highlight ---
+    hi_star   = kw.get("highlight_star",    True)
+    shad_alpha= kw.get("shadow_alpha",      0.25)
+    ann_mat   = kw.get("annotate_material", None)
 
-    log_sc      = kw.get("log_scale",     False)
-    show_grid   = kw.get("show_grid",     True)
-    grid_style  = kw.get("grid_style",    "--")
-    y_min       = kw.get("y_min",         None)
-    y_max       = kw.get("y_max",         None)
-    leg_loc     = kw.get("legend_loc",    "lower right")
-    sp_w        = kw.get("spine_width",   1.0)
-    tk_len      = kw.get("tick_length",   6)
-    tk_w        = kw.get("tick_width",    1.0)
+    # --- axes ---
+    log_sc    = kw.get("log_scale",     False)
+    show_grid = kw.get("show_grid",     True)
+    grid_style= kw.get("grid_style",    "--")
+    y_min     = kw.get("y_min",         None)
+    y_max     = kw.get("y_max",         None)
+    leg_loc   = kw.get("legend_loc",    "None")
+    sp_w      = kw.get("spine_width",   1.0)
+    tk_len    = kw.get("tick_length",   6)
+    tk_w      = kw.get("tick_width",    1.0)
 
-    title       = kw.get("title_text",    "Slope Chart — Material Occurrences")
-    subtitle    = kw.get("subtitle_text", "")
-    xl_text     = kw.get("xlabel_text",   "Time Period")
-    yl_text     = kw.get("ylabel_text",   "Occurrences")
-    watermark   = kw.get("watermark_text","")
+    # --- text ---
+    title    = kw.get("title_text",     "Slope Chart — Material Occurrences")
+    subtitle = kw.get("subtitle_text",  "")
+    xl_text  = kw.get("xlabel_text",    "Time Period")
+    yl_text  = kw.get("ylabel_text",    "Occurrences")
+    watermark= kw.get("watermark_text", "")
 
-    bg_st       = kw.get("bg_style",      "Light")
-    mk_sz       = kw.get("marker_size",   10)
-    fs          = kw.get("font_size",     12)
-    fw          = kw.get("fig_width",     10)
-    fh          = kw.get("fig_height",    6.5)
-    show_hover  = kw.get("show_hover",    True)
-    conn_lines  = kw.get("connector_lines", False)
+    # --- theme / layout ---
+    bg_st     = kw.get("bg_style",      "Light")
+    mk_sz     = kw.get("marker_size",   10)
+    fs        = kw.get("font_size",     12)
+    fw_val    = kw.get("fig_width",     10)
+    fh_val    = kw.get("fig_height",    6.5)
+    show_hover= kw.get("show_hover",    True)
 
     n = len(df_active)
     if n == 0:
         st.info("No materials selected — toggle at least one in the sidebar.")
         return None
 
-    # --- figure ---
-    fig, ax = plt.subplots(figsize=(fw, fh))
+    # ─── figure ───────────────────────────────────────────────
+    fig, ax = plt.subplots(figsize=(fw_val, fh_val))
     bg_face = "#FAFAFA" if bg_st == "Light" else "#1E1E2F"
     ax_face = "#FFFFFF" if bg_st == "Light" else "#2B2B3D"
     fig.patch.set_facecolor(bg_face)
@@ -173,10 +183,10 @@ def plot_slope_chart(df_active, **kw):
 
     xp = [1, 2]
 
-    # --- colormap ---
+    # ─── colormap ─────────────────────────────────────────────
     cmap_obj = norm_obj = None
     if use_cmap and n > 0:
-        cname = cmap_name + "_r" if cmap_reverse else cmap_name
+        cname    = cmap_name + "_r" if cmap_reverse else cmap_name
         cmap_obj = safe_get_cmap(cname)
         gv = df_active["Growth"].values
         vmin, vmax = gv.min(), gv.max()
@@ -189,14 +199,14 @@ def plot_slope_chart(df_active, **kw):
             return cmap_obj(norm_obj(growth))
         return cust_col.get(mat, DEFAULT_PALETTE.get(mat, "#333333"))
 
-    # --- draw each slope ---
+    # ─── draw each slope ──────────────────────────────────────
     for idx, row in df_active.iterrows():
-        mat = row["Material"]
-        yv  = [row["Time_1"], row["Time_2"]]
-        color  = col_for(mat, row["Growth"])
-        marker = mk_over.get(mat, MARKER_STYLE.get(mat, "o"))
-        ls     = ln_styles.get(mat, "-")
-        star   = row["Highlight"] and hi_star
+        mat   = row["Material"]
+        yv    = [row["Time_1"], row["Time_2"]]
+        color = col_for(mat, row["Growth"])
+        marker= mk_over.get(mat, MARKER_STYLE.get(mat, "o"))
+        ls    = ln_styles.get(mat, "-")
+        star  = row["Highlight"] and hi_star
 
         lw = line_w * (1.8 if star else 1.0)
         ms = mk_sz  * (1.4 if star else 1.0)
@@ -209,7 +219,7 @@ def plot_slope_chart(df_active, **kw):
         else:
             xc, yc = xp, yv
 
-        # glow / shadow
+        # glow
         if star and shad_alpha > 0:
             ax.plot(xc, yc, color=color, lw=lw + 4,
                     alpha=shad_alpha * 0.5, zorder=zo - 1)
@@ -221,21 +231,20 @@ def plot_slope_chart(df_active, **kw):
                 linestyle=ls, solid_capstyle="round",
                 dash_capstyle="round", label=mat)
 
-        # markers at endpoints
+        # endpoint markers
         ax.plot(xc[0],  yc[0],  marker=marker, ms=ms, color=color,
                 zorder=zo + 1, markeredgecolor=edge_c, markeredgewidth=1.5)
         ax.plot(xc[-1], yc[-1], marker=marker, ms=ms, color=color,
                 zorder=zo + 1, markeredgecolor=edge_c, markeredgewidth=1.5)
 
-        # arrow at end
+        # arrow
         if show_arrow:
             ax.annotate("", xy=(xp[1] + 0.06, yv[1]),
                         xytext=(xp[1] - 0.08, yv[1]),
                         arrowprops=dict(arrowstyle="->", color=color,
-                                        lw=lw * 0.7),
-                        zorder=zo + 2)
+                                        lw=lw * 0.7), zorder=zo + 2)
 
-        # --- labels ---
+        # ─── labels ───────────────────────────────────────────
         stroke = [pe.withStroke(linewidth=2.5, foreground=edge_c)]
         fl     = fs - 1
         sym    = row["Symbol"] if show_sym else ""
@@ -245,7 +254,6 @@ def plot_slope_chart(df_active, **kw):
                        edgecolor=color, alpha=0.75, linewidth=0.8)
                   if label_bg else None)
 
-        # connector lines from label to point
         if conn_lines:
             ax.plot([xp[0] - 0.04, xp[0]], [yv[0] + oy, yv[0]],
                     color=color, lw=0.6, alpha=0.5, zorder=zo - 1,
@@ -258,8 +266,7 @@ def plot_slope_chart(df_active, **kw):
             ltxt = f"{sym} {mat}\n{yv[0]:,}".strip()
             ax.text(xp[0] - 0.08, yv[0] + oy, ltxt,
                     ha="right", va="center", fontsize=fl,
-                    rotation=label_rot,
-                    color=color,
+                    rotation=label_rot, color=color,
                     fontweight="bold" if star else "normal",
                     path_effects=stroke, bbox=bbox_p)
 
@@ -268,16 +275,15 @@ def plot_slope_chart(df_active, **kw):
             rtxt = f"{yv[1]:,}{gp}"
             ax.text(xp[1] + 0.08, yv[1] + oy, rtxt,
                     ha="left", va="center", fontsize=fl,
-                    rotation=label_rot,
-                    color=color,
+                    rotation=label_rot, color=color,
                     fontweight="bold" if star else "normal",
                     path_effects=stroke, bbox=bbox_p)
 
-    # --- annotation arrow ---
+    # ─── annotation arrow ─────────────────────────────────────
     if ann_mat and ann_mat in df_active["Material"].values:
-        sr = df_active[df_active["Material"] == ann_mat].iloc[0]
-        mx = 1.5
-        my = (sr["Time_1"] + sr["Time_2"]) / 2
+        sr  = df_active[df_active["Material"] == ann_mat].iloc[0]
+        mx  = 1.5
+        my  = (sr["Time_1"] + sr["Time_2"]) / 2
         oy2 = my * 0.35 if log_sc else 80
         ac  = col_for(ann_mat, sr["Growth"])
         ax.annotate(f"🔥 {sr['Growth_Str']}",
@@ -286,9 +292,10 @@ def plot_slope_chart(df_active, **kw):
                     ha="center", va="bottom",
                     arrowprops=dict(arrowstyle="->", color=ac, lw=1.8,
                                     connectionstyle="arc3,rad=-0.2"),
-                    path_effects=[pe.withStroke(linewidth=2, foreground=edge_c)])
+                    path_effects=[pe.withStroke(linewidth=2,
+                                               foreground=edge_c)])
 
-    # --- axes ---
+    # ─── axes setup ───────────────────────────────────────────
     ax.set_xticks([1, 2])
     ax.set_xticklabels(["Before 2021", "After 2021"],
                        fontsize=fs + 2, fontweight="bold", color=txt_c)
@@ -306,20 +313,14 @@ def plot_slope_chart(df_active, **kw):
         ax.set_ylim(y_min, y_max)
 
     ax.grid(show_grid, linestyle=grid_style, alpha=0.4, color=grd_c)
-
-    for sp_name in ax.spines.values():
-        sp_name.set_linewidth(sp_w)
-        sp_name.set_color(sp_c)
-    for sp_name in ("top", "right"):
-        ax.spines[sp_name].set_visible(False)
-
     ax.tick_params(axis="both", labelsize=fs, colors=txt_c,
                    length=tk_len, width=tk_w)
     ax.set_xlim(0.5, 2.5)
 
-    # --- three-color gradient background ---
+    # ─── three-color gradient background ──────────────────────
     if tri_bg:
-        clist = [mcolors.to_rgba(bg1), mcolors.to_rgba(bg2), mcolors.to_rgba(bg3)]
+        clist = [mcolors.to_rgba(bg1), mcolors.to_rgba(bg2),
+                 mcolors.to_rgba(bg3)]
         xl, xr = ax.get_xlim()
         yb, yt = ax.get_ylim()
         if "Vertical" in bg_dir:
@@ -328,11 +329,12 @@ def plot_slope_chart(df_active, **kw):
         else:
             grad = np.linspace(0, 1, 256).reshape(1, -1)
             grad = np.vstack([grad] * 2)
-        cm_bg = mcolors.LinearSegmentedColormap.from_list("tbg", clist, N=256)
+        cm_bg = mcolors.LinearSegmentedColormap.from_list("tbg", clist,
+                                                          N=256)
         ax.imshow(grad, aspect="auto", cmap=cm_bg, alpha=bg_alpha,
                   extent=[xl, xr, yb, yt], origin="lower", zorder=0)
 
-    # --- colorbar ---
+    # ─── colorbar ─────────────────────────────────────────────
     if use_cmap and show_cbar and cmap_obj and norm_obj:
         sm = cm.ScalarMappable(cmap=cmap_obj, norm=norm_obj)
         sm.set_array([])
@@ -342,55 +344,77 @@ def plot_slope_chart(df_active, **kw):
         cbar.outline.set_edgecolor(sp_c)
         cbar.outline.set_linewidth(0.8)
 
-    # --- legend ---
+    # ─── legend  (respects show_gpct + "None" to hide) ───────
     handles, labels = ax.get_legend_handles_labels()
     new_lab = []
     for lab in labels:
         sym = df[df["Material"] == lab]["Symbol"].values[0]
-        g   = df[df["Material"] == lab]["Growth_Str"].values[0]
-        new_lab.append(f"  {sym}  {lab}  ({g})")
-    if handles:
+        if show_gpct:
+            g = df[df["Material"] == lab]["Growth_Str"].values[0]
+            new_lab.append(f"  {sym}  {lab}  ({g})")
+        else:
+            new_lab.append(f"  {sym}  {lab}")
+    if handles and leg_loc != "None":
         leg = ax.legend(handles, new_lab, loc=leg_loc, fontsize=fs + 1,
                         frameon=True, fancybox=True, shadow=True,
                         edgecolor=sp_c,
-                        facecolor=("#FFFFFF" if bg_st == "Light" else "#2B2B3D"),
-                        labelcolor=txt_c, borderpad=0.8, handletextpad=0.6)
+                        facecolor=("#FFFFFF" if bg_st == "Light"
+                                   else "#2B2B3D"),
+                        labelcolor=txt_c, borderpad=0.8,
+                        handletextpad=0.6)
         leg.get_frame().set_linewidth(1.2)
 
-    # --- watermark ---
+    # ─── watermark ────────────────────────────────────────────
     if watermark:
         fig.text(0.99, 0.01, watermark, fontsize=8, color=txt_c,
                  alpha=0.3, ha="right", va="bottom", style="italic")
 
-    # --- box border around chart ---
+    # ─── AXES BOX — drawn directly on the axes area ───────────
+    ls_map = {"solid": "-", "dashed": "--",
+              "dotted": ":", "dashdot": "-."}
+    bls = ls_map.get(box_ls, "-")
+
     if box_on:
-        ls_map = {"solid": "-", "dashed": "--",
-                  "dotted": ":", "dashdot": "-."}
-        bls = ls_map.get(box_ls, "-")
+        # Hide default matplotlib spines — our box replaces them
+        for sp_name in ax.spines.values():
+            sp_name.set_visible(False)
+
+        # Drop shadow (slight offset in axes coords)
         if box_shad:
-            fig.patches.append(FancyBboxPatch(
-                (0.02, 0.013), 0.965, 0.974,
+            ax.add_patch(FancyBboxPatch(
+                (0.004, -0.004), 0.996, 1.004,
                 boxstyle=f"round,pad=0,rounding_size={box_rad}",
                 facecolor="none", edgecolor=(0, 0, 0, 0.12),
-                linewidth=box_w + 3, linestyle=bls,
-                transform=fig.transFigure, zorder=0))
+                linewidth=box_w + 2, linestyle=bls,
+                transform=ax.transAxes, zorder=19, clip_on=False))
+
+        # Optional tinted fill behind the plot area
         if box_fill:
-            fig.patches.append(FancyBboxPatch(
-                (0.012, 0.012), 0.976, 0.976,
+            ax.add_patch(FancyBboxPatch(
+                (0, 0), 1, 1,
                 boxstyle=f"round,pad=0,rounding_size={box_rad}",
                 facecolor=(*mcolors.to_rgb(box_fill_col), box_fill_al),
                 edgecolor="none",
-                transform=fig.transFigure, zorder=0))
-        fig.patches.append(FancyBboxPatch(
-            (0.01, 0.01), 0.98, 0.98,
+                transform=ax.transAxes, zorder=0, clip_on=False))
+
+        # Main border box — IS the axes frame
+        ax.add_patch(FancyBboxPatch(
+            (0, 0), 1, 1,
             boxstyle=f"round,pad=0,rounding_size={box_rad}",
             facecolor="none", edgecolor=box_col,
             linewidth=box_w, linestyle=bls,
-            transform=fig.transFigure, zorder=5))
+            transform=ax.transAxes, zorder=20, clip_on=False))
+    else:
+        # No custom box → default spine behaviour (hide top & right)
+        for sp_name in ax.spines.values():
+            sp_name.set_linewidth(sp_w)
+            sp_name.set_color(sp_c)
+        for sp_name in ("top", "right"):
+            ax.spines[sp_name].set_visible(False)
 
     fig.tight_layout()
 
-    # --- hover ---
+    # ─── hover ────────────────────────────────────────────────
     if show_hover and HAVE_MPLCURSORS:
         cursor = mplcursors.cursor(ax.lines, hover=True)
         cursor.connect("add", lambda sel: sel.annotation.set_text(
@@ -412,7 +436,8 @@ background:linear-gradient(90deg,#E63946,#457B9D,#2A9D8F);
 -webkit-background-clip:text;-webkit-text-fill-color:transparent">
 Enhanced Slope Chart Studio</span></div>
 <p style="color:#888;margin-top:-4px;margin-bottom:16px">
-Colormaps &middot; Gradient Backgrounds &middot; Curved Splines &middot; Boxed Layout &middot; Full Label Control</p>""")
+Colormaps &middot; Gradient Backgrounds &middot; Curved Splines
+&middot; Axes Box &middot; Full Label Control</p>""")
 
 # ─── sidebar ─────────────────────────────────────────────────
 with st.sidebar:
@@ -425,68 +450,70 @@ with st.sidebar:
         for i, mat in enumerate(df["Material"]):
             sym = df[df["Material"] == mat]["Symbol"].values[0]
             with cols[i]:
-                toggle_states[mat] = st.toggle(f"{sym} {mat}", True,
-                                               key=f"tog_{mat}")
+                toggle_states[mat] = st.toggle(
+                    f"{sym} {mat}", True, key=f"tog_{mat}")
 
     # ── 2. Label controls ──
     with st.expander("🏷️  Label Controls", expanded=True):
-        show_left  = st.checkbox("Left Labels  (name + value)",   True)
-        show_right = st.checkbox("Right Labels (value + growth)",  True)
-        c1, c2     = st.columns(2)
+        show_left  = st.checkbox("Left Labels  (name + value)", True)
+        show_right = st.checkbox("Right Labels (value + growth)", True)
+        c1, c2 = st.columns(2)
         with c1:
             show_sym  = st.checkbox("Symbols  ● ■ ◆", True)
         with c2:
-            show_gpct = st.checkbox("Growth %",       True)
-        label_oy  = st.slider("Label Vertical Offset", -150, 150, 0, 5)
-        label_rot = st.slider("Label Rotation (°)",   -45, 45, 0, 1)
-        label_bg  = st.checkbox("Label Background Boxes", False)
-        conn_lines= st.checkbox("Connector Dots → Labels", False)
+            show_gpct = st.checkbox("Growth %", True)
+        label_oy   = st.slider("Label Vertical Offset", -150, 150, 0, 5)
+        label_rot  = st.slider("Label Rotation (°)",   -45, 45, 0, 1)
+        label_bg   = st.checkbox("Label Background Boxes", False)
+        conn_lines = st.checkbox("Connector Dots → Labels", False)
 
     # ── 3. Line / spline style ──
-    #    ALL float sliders use float literals for min/max/value/step
-    #    ALL int   sliders use int   literals for min/max/value/step
     with st.expander("✏️  Line & Spline Style", expanded=True):
         line_w    = st.slider("Spline Thickness (line width)",
                               0.5, 14.0, 3.0, 0.5)
         curv      = st.slider("Curvature / Spline Bend",
                               -1.0, 1.0, 0.0, 0.05,
-                              help="0 = straight · + = bulge up · − = bulge down")
-        line_alph = st.slider("Line Opacity",
-                              0.1, 1.0, 0.85, 0.05)
+                              help="0 = straight · + = bulge up · "
+                                   "− = bulge down")
+        line_alph = st.slider("Line Opacity", 0.1, 1.0, 0.85, 0.05)
         show_arrow= st.checkbox("Arrow at Line End", False)
 
     # ── 4. Colormap mode (50+) ──
     with st.expander("🌈  Colormap Mode  (50+ maps)", expanded=False):
-        use_cmap     = st.checkbox("Color Lines by Growth Rate", False)
-        cmap_search  = st.text_input("Filter colormaps…", "", key="cms")
-        filtered     = ([c for c in ALL_CMAPS if cmap_search.lower() in c.lower()]
-                        if cmap_search else ALL_CMAPS)
-        cmap_name    = st.selectbox(
+        use_cmap    = st.checkbox("Color Lines by Growth Rate", False)
+        cmap_search = st.text_input("Filter colormaps…", "", key="cms")
+        filtered = ([c for c in ALL_CMAPS
+                     if cmap_search.lower() in c.lower()]
+                    if cmap_search else ALL_CMAPS)
+        cmap_name = st.selectbox(
             "Colormap", filtered,
             index=(filtered.index("viridis")
                    if "viridis" in filtered else 0))
         cmap_reverse = st.checkbox("Reverse Colormap", False)
 
         if use_cmap:
-            pc = safe_get_cmap(cmap_name + ("_r" if cmap_reverse else ""))
+            pc = safe_get_cmap(
+                cmap_name + ("_r" if cmap_reverse else ""))
             st.image(pc(np.linspace(0, 1, 512).reshape(1, -1)),
                      use_container_width=True)
-            st.caption(f"Showing: **{cmap_name}**  ·  {len(ALL_CMAPS)} total maps")
+            st.caption(
+                f"Showing: **{cmap_name}**  ·  "
+                f"{len(ALL_CMAPS)} total maps")
 
         show_cbar = st.checkbox("Show Colorbar", True)
 
     # ── 5. Per-material styling ──
-    custom_colors    = DEFAULT_PALETTE.copy()
-    ln_styles_dict   = {m: "-" for m in df["Material"]}
-    mk_over_dict     = MARKER_STYLE.copy()
+    custom_colors  = DEFAULT_PALETTE.copy()
+    ln_styles_dict = {m: "-" for m in df["Material"]}
+    mk_over_dict   = MARKER_STYLE.copy()
 
     with st.expander("🎨  Per-Material Styling", expanded=False):
         st.markdown("**Colors**")
         cc = {}; cols = st.columns(3)
         for i, mat in enumerate(df["Material"]):
             with cols[i]:
-                cc[mat] = st.color_picker(mat, DEFAULT_PALETTE[mat],
-                                          key=f"clr_{mat}")
+                cc[mat] = st.color_picker(
+                    mat, DEFAULT_PALETTE[mat], key=f"clr_{mat}")
         if not use_cmap:
             custom_colors = cc
 
@@ -494,8 +521,8 @@ with st.sidebar:
         ls_d = {}; cols = st.columns(3)
         for i, mat in enumerate(df["Material"]):
             with cols[i]:
-                ls_d[mat] = st.selectbox(mat, ["-", "--", "-.", ":"],
-                                       key=f"ls_{mat}")
+                ls_d[mat] = st.selectbox(
+                    mat, ["-", "--", "-.", ":"], key=f"ls_{mat}")
         ln_styles_dict = ls_d
 
         st.markdown("**Markers**")
@@ -504,20 +531,22 @@ with st.sidebar:
         for i, mat in enumerate(df["Material"]):
             di = mk_opts.index(MARKER_STYLE[mat])
             with cols[i]:
-                mo[mat] = st.selectbox(mat, mk_opts, index=di,
-                                       key=f"mk_{mat}")
+                mo[mat] = st.selectbox(
+                    mat, mk_opts, index=di, key=f"mk_{mat}")
         mk_over_dict = mo
 
     # ── 6. Three-color gradient background ──
-    with st.expander("🌅  Three-Color Gradient / Shade", expanded=False):
-        tri_bg  = st.checkbox("Enable Gradient Background", False)
-        bg_pre  = st.selectbox("Preset", list(BG_PRESETS.keys()), index=0)
+    with st.expander("🌅  Three-Color Gradient / Shade",
+                     expanded=False):
+        tri_bg = st.checkbox("Enable Gradient Background", False)
+        bg_pre = st.selectbox("Preset",
+                              list(BG_PRESETS.keys()), index=0)
         p1, p2, p3 = BG_PRESETS[bg_pre]
         cols = st.columns(3)
         with cols[0]:
-            bg1 = st.color_picker("Top / Left",   p1, key="bg1")
+            bg1 = st.color_picker("Top / Left",    p1, key="bg1")
         with cols[1]:
-            bg2 = st.color_picker("Middle",        p2, key="bg2")
+            bg2 = st.color_picker("Middle",         p2, key="bg2")
         with cols[2]:
             bg3 = st.color_picker("Bottom / Right", p3, key="bg3")
         bg_alpha = st.slider("Gradient Opacity", 0.0, 0.8, 0.15, 0.05)
@@ -526,55 +555,64 @@ with st.sidebar:
                              "Horizontal (Left→Right)"],
                             horizontal=True)
 
-    # ── 7. Chart box / border ──
-    with st.expander("📦  Chart Box / Border", expanded=False):
-        box_on   = st.checkbox("Show Box", True)
-        box_col  = st.color_picker("Border Color", "#888888", key="bxcol")
-        box_w    = st.slider("Border Width",   0.5, 8.0, 2.0, 0.5)
-        box_ls   = st.selectbox("Border Style",
-                                ["solid", "dashed", "dotted", "dashdot"])
-        box_rad  = st.slider("Corner Roundness", 0.0, 0.1, 0.02, 0.005)
-        box_shad = st.checkbox("Drop Shadow", True)
-        box_fill = st.checkbox("Box Fill Tint", False)
-        box_fill_col = st.color_picker("Fill Tint Color", "#FFFFFF",
-                                       key="bxfill")
-        box_fill_al  = st.slider("Fill Tint Opacity", 0.0, 0.3, 0.05, 0.01)
+    # ── 7. Axes box / border (on the axes themselves) ──
+    with st.expander("📦  Axes Box / Border", expanded=False):
+        box_on  = st.checkbox("Show Axes Box", True)
+        box_col = st.color_picker("Border Color", "#888888", key="bxcol")
+        box_w   = st.slider("Border Width",   0.5, 8.0, 2.0, 0.5)
+        box_ls  = st.selectbox("Border Style",
+                               ["solid", "dashed", "dotted", "dashdot"])
+        box_rad = st.slider("Corner Roundness", 0.0, 0.1, 0.02, 0.005)
+        box_shad= st.checkbox("Drop Shadow", True)
+        box_fill= st.checkbox("Box Fill Tint", False)
+        box_fill_col = st.color_picker("Fill Tint Color",
+                                       "#FFFFFF", key="bxfill")
+        box_fill_al  = st.slider("Fill Tint Opacity",
+                                 0.0, 0.3, 0.05, 0.01)
 
     # ── 8. Glow / highlight ──
     with st.expander("✨  Glow / Highlight", expanded=False):
-        hi_star   = st.checkbox("Highlight Fastest Growth", True)
-        shad_alpha= st.slider("Glow Intensity", 0.0, 1.0, 0.25, 0.05)
-        a_opts    = [None] + list(df["Material"])
-        ann_mat   = st.selectbox("Annotate Material", a_opts,
-                                  format_func=lambda x: ("None" if x is None
-                                                         else x), index=1)
+        hi_star    = st.checkbox("Highlight Fastest Growth", True)
+        shad_alpha = st.slider("Glow Intensity", 0.0, 1.0, 0.25, 0.05)
+        a_opts     = [None] + list(df["Material"])
+        ann_mat    = st.selectbox(
+            "Annotate Material", a_opts,
+            format_func=lambda x: "None" if x is None else x,
+            index=1)
 
     # ── 9. Titles & text ──
     with st.expander("📝  Titles & Text", expanded=False):
-        title_t  = st.text_input("Title",
-                                  "Slope Chart — Material Occurrences Over Time")
-        sub_t    = st.text_input("Subtitle", "Before 2021 vs After 2021")
-        xl_t     = st.text_input("X-Axis Label", "Time Period")
-        yl_t     = st.text_input("Y-Axis Label", "Occurrences")
-        wm_t     = st.text_input("Watermark", "")
+        title_t = st.text_input(
+            "Title",
+            "Slope Chart — Material Occurrences Over Time")
+        sub_t   = st.text_input("Subtitle",
+                                "Before 2021 vs After 2021")
+        xl_t    = st.text_input("X-Axis Label", "Time Period")
+        yl_t    = st.text_input("Y-Axis Label", "Occurrences")
+        wm_t    = st.text_input("Watermark", "")
 
     # ── 10. Axes & grid ──
     with st.expander("⚙️  Axes & Grid", expanded=False):
         log_sc    = st.checkbox("Log Scale (Y)", False)
         show_grid = st.checkbox("Show Grid",    True)
-        grid_sty  = st.selectbox("Grid Style", ["--", ":", "-.", "-"])
+        grid_sty  = st.selectbox("Grid Style",
+                                 ["--", ":", "-.", "-"])
         cust_yl   = st.checkbox("Custom Y-Limits", False)
         y_min = y_max = None
         if cust_yl:
             c1, c2 = st.columns(2)
             with c1:
-                y_min = st.number_input("Y-min", value=0, step=10, key="ymin")
+                y_min = st.number_input("Y-min", value=0,
+                                        step=10, key="ymin")
             with c2:
-                y_max = st.number_input("Y-max", value=500, step=10, key="ymax")
-        leg_loc = st.selectbox("Legend Position",
-                                ["best", "upper right", "upper left",
-                                 "lower left", "lower right", "center"],
-                                index=4)
+                y_max = st.number_input("Y-max", value=500,
+                                        step=10, key="ymax")
+        # "None" is first option so legend is off by default
+        leg_loc = st.selectbox(
+            "Legend Position",
+            ["None", "best", "upper right", "upper left",
+             "lower left", "lower right", "center"],
+            index=0)
         st.markdown("**Spines & Ticks**")
         sp_w   = st.slider("Spine Width",  0.5, 5.0, 1.0, 0.1)
         tk_len = st.slider("Tick Length",   2, 20, 6, 1)
@@ -584,11 +622,11 @@ with st.sidebar:
     st.divider()
     st.subheader("🎨  Theme & Layout")
     bg_st  = st.radio("Theme", ["Light", "Dark"], horizontal=True)
-    mk_sz  = st.slider("Marker Size",  4, 28, 10)
-    fs_val = st.slider("Font Size",    8, 26, 12)
+    mk_sz  = st.slider("Marker Size", 4, 28, 10)
+    fs_val = st.slider("Font Size",   8, 26, 12)
     asp_map = {"4:3": (10, 7.5), "16:9": (12, 6.75),
                "3:2": (10.5, 7), "1:1": (8, 8), "Wide": (14, 6)}
-    asp     = st.selectbox("Aspect Ratio", list(asp_map.keys()), index=0)
+    asp = st.selectbox("Aspect Ratio", list(asp_map.keys()), index=0)
     fw_val, fh_val = asp_map[asp]
 
     st.divider()
@@ -606,47 +644,47 @@ with st.expander("📊  View Raw Data", expanded=False):
         use_container_width=True, hide_index=True,
         column_config={
             "Material": st.column_config.TextColumn("Material"),
-            "Time_1":   st.column_config.NumberColumn("Before 2021",
-                                                        format="%d"),
-            "Time_2":   st.column_config.NumberColumn("After 2021",
-                                                        format="%d"),
+            "Time_1":   st.column_config.NumberColumn(
+                "Before 2021", format="%d"),
+            "Time_2":   st.column_config.NumberColumn(
+                "After 2021", format="%d"),
             "Growth":   st.column_config.TextColumn("Growth"),
         })
 
 # ─── plot ────────────────────────────────────────────────────
 fig = plot_slope_chart(
     df_active,
-    show_left_labels=show_left,  show_right_labels=show_right,
-    show_symbols=show_sym,       show_growth_pct=show_gpct,
-    label_offset_y=label_oy,     label_bg=label_bg,
-    label_rotation=label_rot,    connector_lines=conn_lines,
-    line_width=line_w,           curvature=curv,
-    line_alpha=line_alph,        show_arrow=show_arrow,
-    use_cmap=use_cmap,           cmap_name=cmap_name,
-    show_colorbar=show_cbar,     cmap_reverse=cmap_reverse,
-    custom_colors=custom_colors, line_styles=ln_styles_dict,
+    show_left_labels=show_left,   show_right_labels=show_right,
+    show_symbols=show_sym,        show_growth_pct=show_gpct,
+    label_offset_y=label_oy,      label_bg=label_bg,
+    label_rotation=label_rot,     connector_lines=conn_lines,
+    line_width=line_w,            curvature=curv,
+    line_alpha=line_alph,         show_arrow=show_arrow,
+    use_cmap=use_cmap,            cmap_name=cmap_name,
+    show_colorbar=show_cbar,      cmap_reverse=cmap_reverse,
+    custom_colors=custom_colors,  line_styles=ln_styles_dict,
     marker_overrides=mk_over_dict,
-    three_color_bg=tri_bg,       bg_color1=bg1,
-    bg_color2=bg2,               bg_color3=bg3,
-    bg_gradient_alpha=bg_alpha,  bg_gradient_direction=bg_dir,
-    box_visible=box_on,          box_color=box_col,
-    box_width=box_w,             box_linestyle=box_ls,
-    box_corner_radius=box_rad,   box_shadow=box_shad,
-    box_fill=box_fill,           box_fill_color=box_fill_col,
+    three_color_bg=tri_bg,        bg_color1=bg1,
+    bg_color2=bg2,                bg_color3=bg3,
+    bg_gradient_alpha=bg_alpha,   bg_gradient_direction=bg_dir,
+    box_visible=box_on,           box_color=box_col,
+    box_width=box_w,              box_linestyle=box_ls,
+    box_corner_radius=box_rad,    box_shadow=box_shad,
+    box_fill=box_fill,            box_fill_color=box_fill_col,
     box_fill_alpha=box_fill_al,
-    highlight_star=hi_star,      shadow_alpha=shad_alpha,
+    highlight_star=hi_star,       shadow_alpha=shad_alpha,
     annotate_material=ann_mat,
-    log_scale=log_sc,            show_grid=show_grid,
+    log_scale=log_sc,             show_grid=show_grid,
     grid_style=grid_sty,
-    y_min=y_min,                 y_max=y_max,
-    legend_loc=leg_loc,          spine_width=sp_w,
-    tick_length=tk_len,          tick_width=tk_w,
-    title_text=title_t,          subtitle_text=sub_t,
-    xlabel_text=xl_t,            ylabel_text=yl_t,
+    y_min=y_min,                  y_max=y_max,
+    legend_loc=leg_loc,           spine_width=sp_w,
+    tick_length=tk_len,           tick_width=tk_w,
+    title_text=title_t,           subtitle_text=sub_t,
+    xlabel_text=xl_t,             ylabel_text=yl_t,
     watermark_text=wm_t,
-    bg_style=bg_st,              marker_size=mk_sz,
-    font_size=fs_val,            fig_width=fw_val,
-    fig_height=fh_val,           show_hover=show_hover,
+    bg_style=bg_st,               marker_size=mk_sz,
+    font_size=fs_val,             fig_width=fw_val,
+    fig_height=fh_val,            show_hover=show_hover,
 )
 
 # ─── export ──────────────────────────────────────────────────
@@ -662,9 +700,10 @@ if fig is not None:
                     facecolor=fig.get_facecolor())
         buf.seek(0)
         with col:
-            st.download_button(f"📥 {ext.upper()}", data=buf,
-                               file_name=f"slope_chart.{ext}",
-                               mime=mime, use_container_width=True)
+            st.download_button(
+                f"📥 {ext.upper()}", data=buf,
+                file_name=f"slope_chart.{ext}",
+                mime=mime, use_container_width=True)
 
 # ─── footer ──────────────────────────────────────────────────
 st.markdown("---")
@@ -672,5 +711,4 @@ st.caption(
     f"Growth = ((After − Before) / Before) × 100  ·  "
     f"Available colormaps: **{len(ALL_CMAPS)}**  ·  "
     "Built with Streamlit & Matplotlib  ·  "
-    "Hover tooltips require `pip install mplcursors`"
-)
+    "Hover tooltips require `pip install mplcursors`")
