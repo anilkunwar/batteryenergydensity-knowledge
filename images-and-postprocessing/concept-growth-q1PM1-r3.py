@@ -77,7 +77,6 @@ MARKER_STYLE    = {"NMC811": "o",       "Silicon": "s",       "Graphite": "D"}
 #  HELPER — Quadratic Bézier curved line
 # ═══════════════════════════════════════════════════════════════
 def make_curved_line(x1, y1, x2, y2, curvature=0.0, n=80):
-    """curvature > 0 bulges up, < 0 bulges down, 0 = straight."""
     t  = np.linspace(0, 1, n)
     cx = (x1 + x2) / 2
     cy = (y1 + y2) / 2 + curvature * max(abs(y2 - y1), 1)
@@ -89,7 +88,6 @@ def make_curved_line(x1, y1, x2, y2, curvature=0.0, n=80):
 #  MAIN PLOT FUNCTION
 # ═══════════════════════════════════════════════════════════════
 def plot_slope_chart(df_active, **kw):
-    # --- unpack with safe defaults --------------------------------
     show_left   = kw.get("show_left_labels",  True)
     show_right  = kw.get("show_right_labels", True)
     show_sym    = kw.get("show_symbols",      True)
@@ -98,11 +96,10 @@ def plot_slope_chart(df_active, **kw):
     label_bg    = kw.get("label_bg",          False)
     label_rot   = kw.get("label_rotation",    0)
 
-    line_w      = kw.get("line_width",   3)
+    line_w      = kw.get("line_width",   3.0)
     curv        = kw.get("curvature",    0.0)
     line_alpha  = kw.get("line_alpha",   0.85)
     show_arrow  = kw.get("show_arrow",   False)
-    dash_offset = kw.get("dash_offset",  0)
 
     use_cmap    = kw.get("use_cmap",     False)
     cmap_name   = kw.get("cmap_name",    "viridis")
@@ -118,7 +115,7 @@ def plot_slope_chart(df_active, **kw):
     bg2         = kw.get("bg_color2",             "#FF7F50")
     bg3         = kw.get("bg_color3",             "#CD5C5C")
     bg_alpha    = kw.get("bg_gradient_alpha",     0.15)
-    bg_dir      = kw.get("bg_gradient_direction",  "Vertical (Top→Bottom)")
+    bg_dir      = kw.get("bg_gradient_direction", "Vertical (Top→Bottom)")
 
     box_on      = kw.get("box_visible",       True)
     box_col     = kw.get("box_color",         "#888888")
@@ -163,7 +160,7 @@ def plot_slope_chart(df_active, **kw):
         st.info("No materials selected — toggle at least one in the sidebar.")
         return None
 
-    # --- figure --------------------------------------------------
+    # --- figure ---
     fig, ax = plt.subplots(figsize=(fw, fh))
     bg_face = "#FAFAFA" if bg_st == "Light" else "#1E1E2F"
     ax_face = "#FFFFFF" if bg_st == "Light" else "#2B2B3D"
@@ -176,7 +173,7 @@ def plot_slope_chart(df_active, **kw):
 
     xp = [1, 2]
 
-    # --- colormap ------------------------------------------------
+    # --- colormap ---
     cmap_obj = norm_obj = None
     if use_cmap and n > 0:
         cname = cmap_name + "_r" if cmap_reverse else cmap_name
@@ -192,7 +189,7 @@ def plot_slope_chart(df_active, **kw):
             return cmap_obj(norm_obj(growth))
         return cust_col.get(mat, DEFAULT_PALETTE.get(mat, "#333333"))
 
-    # --- draw each slope -----------------------------------------
+    # --- draw each slope ---
     for idx, row in df_active.iterrows():
         mat = row["Material"]
         yv  = [row["Time_1"], row["Time_2"]]
@@ -224,7 +221,7 @@ def plot_slope_chart(df_active, **kw):
                 linestyle=ls, solid_capstyle="round",
                 dash_capstyle="round", label=mat)
 
-        # markers at endpoints (separate so hover works cleanly)
+        # markers at endpoints
         ax.plot(xc[0],  yc[0],  marker=marker, ms=ms, color=color,
                 zorder=zo + 1, markeredgecolor=edge_c, markeredgewidth=1.5)
         ax.plot(xc[-1], yc[-1], marker=marker, ms=ms, color=color,
@@ -238,7 +235,7 @@ def plot_slope_chart(df_active, **kw):
                                         lw=lw * 0.7),
                         zorder=zo + 2)
 
-        # --- labels ----------------------------------------------
+        # --- labels ---
         stroke = [pe.withStroke(linewidth=2.5, foreground=edge_c)]
         fl     = fs - 1
         sym    = row["Symbol"] if show_sym else ""
@@ -276,7 +273,7 @@ def plot_slope_chart(df_active, **kw):
                     fontweight="bold" if star else "normal",
                     path_effects=stroke, bbox=bbox_p)
 
-    # --- annotation arrow ----------------------------------------
+    # --- annotation arrow ---
     if ann_mat and ann_mat in df_active["Material"].values:
         sr = df_active[df_active["Material"] == ann_mat].iloc[0]
         mx = 1.5
@@ -291,7 +288,7 @@ def plot_slope_chart(df_active, **kw):
                                     connectionstyle="arc3,rad=-0.2"),
                     path_effects=[pe.withStroke(linewidth=2, foreground=edge_c)])
 
-    # --- axes ----------------------------------------------------
+    # --- axes ---
     ax.set_xticks([1, 2])
     ax.set_xticklabels(["Before 2021", "After 2021"],
                        fontsize=fs + 2, fontweight="bold", color=txt_c)
@@ -310,17 +307,17 @@ def plot_slope_chart(df_active, **kw):
 
     ax.grid(show_grid, linestyle=grid_style, alpha=0.4, color=grd_c)
 
-    for sp in ax.spines.values():
-        sp.set_linewidth(sp_w)
-        sp.set_color(sp_c)
-    for sp in ("top", "right"):
-        ax.spines[sp].set_visible(False)
+    for sp_name in ax.spines.values():
+        sp_name.set_linewidth(sp_w)
+        sp_name.set_color(sp_c)
+    for sp_name in ("top", "right"):
+        ax.spines[sp_name].set_visible(False)
 
     ax.tick_params(axis="both", labelsize=fs, colors=txt_c,
                    length=tk_len, width=tk_w)
     ax.set_xlim(0.5, 2.5)
 
-    # --- three-color gradient background -------------------------
+    # --- three-color gradient background ---
     if tri_bg:
         clist = [mcolors.to_rgba(bg1), mcolors.to_rgba(bg2), mcolors.to_rgba(bg3)]
         xl, xr = ax.get_xlim()
@@ -335,7 +332,7 @@ def plot_slope_chart(df_active, **kw):
         ax.imshow(grad, aspect="auto", cmap=cm_bg, alpha=bg_alpha,
                   extent=[xl, xr, yb, yt], origin="lower", zorder=0)
 
-    # --- colorbar ------------------------------------------------
+    # --- colorbar ---
     if use_cmap and show_cbar and cmap_obj and norm_obj:
         sm = cm.ScalarMappable(cmap=cmap_obj, norm=norm_obj)
         sm.set_array([])
@@ -345,7 +342,7 @@ def plot_slope_chart(df_active, **kw):
         cbar.outline.set_edgecolor(sp_c)
         cbar.outline.set_linewidth(0.8)
 
-    # --- legend --------------------------------------------------
+    # --- legend ---
     handles, labels = ax.get_legend_handles_labels()
     new_lab = []
     for lab in labels:
@@ -360,12 +357,12 @@ def plot_slope_chart(df_active, **kw):
                         labelcolor=txt_c, borderpad=0.8, handletextpad=0.6)
         leg.get_frame().set_linewidth(1.2)
 
-    # --- watermark -----------------------------------------------
+    # --- watermark ---
     if watermark:
         fig.text(0.99, 0.01, watermark, fontsize=8, color=txt_c,
                  alpha=0.3, ha="right", va="bottom", style="italic")
 
-    # --- box border around chart ---------------------------------
+    # --- box border around chart ---
     if box_on:
         ls_map = {"solid": "-", "dashed": "--",
                   "dotted": ":", "dashdot": "-."}
@@ -393,7 +390,7 @@ def plot_slope_chart(df_active, **kw):
 
     fig.tight_layout()
 
-    # --- hover ---------------------------------------------------
+    # --- hover ---
     if show_hover and HAVE_MPLCURSORS:
         cursor = mplcursors.cursor(ax.lines, hover=True)
         cursor.connect("add", lambda sel: sel.annotation.set_text(
@@ -415,7 +412,7 @@ background:linear-gradient(90deg,#E63946,#457B9D,#2A9D8F);
 -webkit-background-clip:text;-webkit-text-fill-color:transparent">
 Enhanced Slope Chart Studio</span></div>
 <p style="color:#888;margin-top:-4px;margin-bottom:16px">
-Colormaps · Gradient Backgrounds · Curved Splines · Boxed Layout · Full Label Control</p>""")
+Colormaps &middot; Gradient Backgrounds &middot; Curved Splines &middot; Boxed Layout &middot; Full Label Control</p>""")
 
 # ─── sidebar ─────────────────────────────────────────────────
 with st.sidebar:
@@ -446,12 +443,16 @@ with st.sidebar:
         conn_lines= st.checkbox("Connector Dots → Labels", False)
 
     # ── 3. Line / spline style ──
+    #    ALL float sliders use float literals for min/max/value/step
+    #    ALL int   sliders use int   literals for min/max/value/step
     with st.expander("✏️  Line & Spline Style", expanded=True):
-        line_w    = st.slider("Spline Thickness (line width)", 0.5, 14, 3, 0.5)
+        line_w    = st.slider("Spline Thickness (line width)",
+                              0.5, 14.0, 3.0, 0.5)
         curv      = st.slider("Curvature / Spline Bend",
                               -1.0, 1.0, 0.0, 0.05,
                               help="0 = straight · + = bulge up · − = bulge down")
-        line_alph = st.slider("Line Opacity", 0.1, 1.0, 0.85, 0.05)
+        line_alph = st.slider("Line Opacity",
+                              0.1, 1.0, 0.85, 0.05)
         show_arrow= st.checkbox("Arrow at Line End", False)
 
     # ── 4. Colormap mode (50+) ──
@@ -490,12 +491,12 @@ with st.sidebar:
             custom_colors = cc
 
         st.markdown("**Line Styles**")
-        ls = {}; cols = st.columns(3)
+        ls_d = {}; cols = st.columns(3)
         for i, mat in enumerate(df["Material"]):
             with cols[i]:
-                ls[mat] = st.selectbox(mat, ["-", "--", "-.", ":"],
+                ls_d[mat] = st.selectbox(mat, ["-", "--", "-.", ":"],
                                        key=f"ls_{mat}")
-        ln_styles_dict = ls
+        ln_styles_dict = ls_d
 
         st.markdown("**Markers**")
         mo = {}; cols = st.columns(3)
