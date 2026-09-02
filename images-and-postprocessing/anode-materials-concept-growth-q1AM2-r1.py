@@ -35,7 +35,7 @@ def get_all_colormaps():
 ALL_CMAPS = get_all_colormaps()
 
 # ═══════════════════════════════════════════════════════════════
-#  ANNOTATION SYMBOL OPTIONS  (all render in matplotlib)
+#  ANNOTATION SYMBOL OPTIONS
 # ═══════════════════════════════════════════════════════════════
 ANN_SYMBOLS = {
     "★  Star":       "★",
@@ -83,21 +83,33 @@ BG_PRESETS = {
 }
 
 # ═══════════════════════════════════════════════════════════════
-#  DATA
+#  DATA — Q1AM2: Overcoming silicon anode volume expansion
+#  *** 0-0 attributes (sei_formation, cycle_life, etc.) excluded ***
 # ═══════════════════════════════════════════════════════════════
 data_raw = {
-    "Material":  ["NMC811", "Silicon", "Graphite"],
-    "Time_1":    [1, 275, 467],
-    "Time_2":    [22, 311, 405],
-    "Symbol":    ["●", "■", "◆"],
-    "Highlight": [True, False, False],
+    "Material":  ["Silicon", "FEC", "Graphite", "NMC811"],
+    "Time_1":    [275, 18, 467, 1],
+    "Time_2":    [311, 49, 405, 22],
+    "Symbol":    ["■", "●", "◆", "▲"],
+    "Highlight": [True, False, False, False],
 }
 df = pd.DataFrame(data_raw)
 df["Growth"]     = ((df["Time_2"] - df["Time_1"]) / df["Time_1"] * 100).round(2)
 df["Growth_Str"] = df["Growth"].apply(lambda g: f"+{g:.2f}%" if g >= 0 else f"{g:.2f}%")
 
-DEFAULT_PALETTE = {"NMC811": "#E63946", "Silicon": "#457B9D", "Graphite": "#2A9D8F"}
-MARKER_STYLE    = {"NMC811": "o",       "Silicon": "s",       "Graphite": "D"}
+# Q1AM2-themed palette: silicon anode volume expansion context
+DEFAULT_PALETTE = {
+    "Silicon":  "#E63946",   # Vivid red  — primary anode under study
+    "FEC":      "#F4A261",   # Warm orange — electrolyte additive for SEI stabilisation
+    "Graphite": "#457B9D",   # Steel blue  — conventional anode (declining reference)
+    "NMC811":   "#2A9D8F",   # Teal        — high-Ni cathode counterpart
+}
+MARKER_STYLE = {
+    "Silicon":  "s",
+    "FEC":      "o",
+    "Graphite": "D",
+    "NMC811":   "^",
+}
 
 # ═══════════════════════════════════════════════════════════════
 #  HELPER — Quadratic Bézier curved line
@@ -164,7 +176,7 @@ def plot_slope_chart(df_active, **kw):
     hi_star   = kw.get("highlight_star",    True)
     shad_alpha= kw.get("shadow_alpha",      0.25)
 
-    # --- annotation (redesigned — no emoji) ---
+    # --- annotation ---
     ann_mat       = kw.get("annotate_material",  None)
     ann_symbol    = kw.get("ann_symbol",         "★")
     ann_box_style = kw.get("ann_box_style",      "round,pad=0.4")
@@ -186,10 +198,10 @@ def plot_slope_chart(df_active, **kw):
     tk_w      = kw.get("tick_width",    1.0)
 
     # --- text ---
-    title    = kw.get("title_text",     "Slope Chart — Material Occurrences")
-    subtitle = kw.get("subtitle_text",  "")
+    title    = kw.get("title_text",     "Q1AM2 — Silicon Anode Volume Expansion")
+    subtitle = kw.get("subtitle_text",  "Overcoming volume expansion to maintain cycle life")
     xl_text  = kw.get("xlabel_text",    "Time Period")
-    yl_text  = kw.get("ylabel_text",    "Occurrences")
+    yl_text  = kw.get("ylabel_text",    "Publication Occurrences")
     watermark= kw.get("watermark_text", "")
 
     # --- theme / layout ---
@@ -202,7 +214,7 @@ def plot_slope_chart(df_active, **kw):
 
     n = len(df_active)
     if n == 0:
-        st.info("No materials selected — toggle at least one in the sidebar.")
+        st.info("No concepts selected — toggle at least one in the sidebar.")
         return None
 
     # ─── figure ───────────────────────────────────────────────
@@ -314,7 +326,7 @@ def plot_slope_chart(df_active, **kw):
                     fontweight="bold" if star else "normal",
                     path_effects=stroke, bbox=bbox_p)
 
-    # ─── ANNOTATION — no emoji, proper symbol + styled arrow ─
+    # ─── ANNOTATION ──────────────────────────────────────────
     if ann_mat and ann_mat in df_active["Material"].values:
         sr  = df_active[df_active["Material"] == ann_mat].iloc[0]
         mx  = 1.5
@@ -322,11 +334,9 @@ def plot_slope_chart(df_active, **kw):
         oy2 = my * ann_offset if log_sc else 80
         ac  = col_for(ann_mat, sr["Growth"])
 
-        # Build text with a safe Unicode symbol (not emoji)
         prefix  = ann_symbol if ann_symbol else ""
         ann_txt = f"{prefix}  {sr['Growth_Str']}" if prefix else sr['Growth_Str']
 
-        # Optional box around annotation text
         bbox_ann = None
         if ann_box_style:
             bbox_ann = dict(
@@ -352,9 +362,9 @@ def plot_slope_chart(df_active, **kw):
                 color=ac,
                 lw=ann_arrow_lw,
                 connectionstyle=f"arc3,rad={ann_curve_rad}",
-                shrinkA=5,       # gap from text box edge
-                shrinkB=8,       # gap from target point
-                mutation_scale=20,  # arrowhead size
+                shrinkA=5,
+                shrinkB=8,
+                mutation_scale=20,
             ),
             path_effects=[pe.withStroke(linewidth=2, foreground=edge_c)],
             zorder=25,
@@ -484,31 +494,34 @@ def plot_slope_chart(df_active, **kw):
 # ═══════════════════════════════════════════════════════════════
 #  STREAMLIT PAGE
 # ═══════════════════════════════════════════════════════════════
-st.set_page_config(page_title="Enhanced Slope Chart Studio", layout="wide")
+st.set_page_config(page_title="Q1AM2 — Silicon Anode Volume Expansion", layout="wide")
 
 st.html("""<div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
-<span style="font-size:2.2rem">📈</span>
+<span style="font-size:2.2rem">🔋</span>
 <span style="font-size:1.7rem;font-weight:700;
-background:linear-gradient(90deg,#E63946,#457B9D,#2A9D8F);
+background:linear-gradient(90deg,#E63946,#F4A261,#457B9D);
 -webkit-background-clip:text;-webkit-text-fill-color:transparent">
-Enhanced Slope Chart Studio</span></div>
+Q1AM2 — Silicon Anode Volume Expansion</span></div>
 <p style="color:#888;margin-top:-4px;margin-bottom:16px">
-Colormaps &middot; Gradient Backgrounds &middot; Curved Splines
-&middot; Axes Box &middot; Styled Annotations</p>""")
+Concept Growth Analysis &middot; Pre-2021 vs Post-2021 &middot;
+0-0 Attributes Excluded &middot; Cycle Life Preservation Focus</p>""")
 
 # ─── sidebar ─────────────────────────────────────────────────
 with st.sidebar:
     st.header("🎛️  Controls")
 
-    # ── 1. Material toggles ──
-    with st.expander("📌 Material Toggles", expanded=True):
+    # ── 1. Concept toggles ──
+    with st.expander("📌 Concept Toggles", expanded=True):
         toggle_states = {}
-        cols = st.columns(3)
+        cols = st.columns(2)
         for i, mat in enumerate(df["Material"]):
             sym = df[df["Material"] == mat]["Symbol"].values[0]
-            with cols[i]:
+            with cols[i % 2]:
                 toggle_states[mat] = st.toggle(
                     f"{sym} {mat}", True, key=f"tog_{mat}")
+
+    st.caption("ℹ️  Concepts with 0 occurrences in both periods "
+               "(e.g. sei_formation, cycle_life) are excluded.")
 
     # ── 2. Label controls ──
     with st.expander("🏷️  Label Controls", expanded=True):
@@ -516,7 +529,7 @@ with st.sidebar:
         show_right = st.checkbox("Right Labels (value + growth)", True)
         c1, c2 = st.columns(2)
         with c1:
-            show_sym  = st.checkbox("Symbols  ● ■ ◆", True)
+            show_sym  = st.checkbox("Symbols  ● ■ ◆ ▲", True)
         with c2:
             show_gpct = st.checkbox("Growth %", True)
         label_oy   = st.slider("Label Vertical Offset", -150, 150, 0, 5)
@@ -535,7 +548,7 @@ with st.sidebar:
         line_alph = st.slider("Line Opacity", 0.1, 1.0, 0.85, 0.05)
         show_arrow= st.checkbox("Arrow at Line End", False)
 
-    # ── 4. Colormap mode (50+) ──
+    # ── 4. Colormap mode ──
     with st.expander("🌈  Colormap Mode  (50+ maps)", expanded=False):
         use_cmap    = st.checkbox("Color Lines by Growth Rate", False)
         cmap_search = st.text_input("Filter colormaps…", "", key="cms")
@@ -559,35 +572,35 @@ with st.sidebar:
 
         show_cbar = st.checkbox("Show Colorbar", True)
 
-    # ── 5. Per-material styling ──
+    # ── 5. Per-concept styling ──
     custom_colors  = DEFAULT_PALETTE.copy()
     ln_styles_dict = {m: "-" for m in df["Material"]}
     mk_over_dict   = MARKER_STYLE.copy()
 
-    with st.expander("🎨  Per-Material Styling", expanded=False):
+    with st.expander("🎨  Per-Concept Styling", expanded=False):
         st.markdown("**Colors**")
-        cc = {}; cols = st.columns(3)
+        cc = {}; cols = st.columns(2)
         for i, mat in enumerate(df["Material"]):
-            with cols[i]:
+            with cols[i % 2]:
                 cc[mat] = st.color_picker(
                     mat, DEFAULT_PALETTE[mat], key=f"clr_{mat}")
         if not use_cmap:
             custom_colors = cc
 
         st.markdown("**Line Styles**")
-        ls_d = {}; cols = st.columns(3)
+        ls_d = {}; cols = st.columns(2)
         for i, mat in enumerate(df["Material"]):
-            with cols[i]:
+            with cols[i % 2]:
                 ls_d[mat] = st.selectbox(
                     mat, ["-", "--", "-.", ":"], key=f"ls_{mat}")
         ln_styles_dict = ls_d
 
         st.markdown("**Markers**")
-        mo = {}; cols = st.columns(3)
+        mo = {}; cols = st.columns(2)
         mk_opts = ["o", "s", "D", "^", "v", "*", "p", "X", "h", "P", "8"]
         for i, mat in enumerate(df["Material"]):
             di = mk_opts.index(MARKER_STYLE[mat])
-            with cols[i]:
+            with cols[i % 2]:
                 mo[mat] = st.selectbox(
                     mat, mk_opts, index=di, key=f"mk_{mat}")
         mk_over_dict = mo
@@ -627,13 +640,13 @@ with st.sidebar:
         box_fill_al  = st.slider("Fill Tint Opacity",
                                  0.0, 0.3, 0.05, 0.01)
 
-    # ── 8. Annotation callout (redesigned — no emoji) ──
+    # ── 8. Annotation callout ──
     with st.expander("📌  Annotation Callout", expanded=False):
         a_opts  = [None] + list(df["Material"])
         ann_mat = st.selectbox(
-            "Annotate Material", a_opts,
+            "Annotate Concept", a_opts,
             format_func=lambda x: "None" if x is None else x,
-            index=1)
+            index=2)  # default: FEC (fastest meaningful growth)
 
         if ann_mat:
             st.markdown("**Prefix Symbol**  *(no emoji — renders "
@@ -674,18 +687,19 @@ with st.sidebar:
 
     # ── 9. Glow / highlight ──
     with st.expander("✨  Glow / Highlight", expanded=False):
-        hi_star    = st.checkbox("Highlight Fastest Growth", True)
+        hi_star    = st.checkbox("Highlight Silicon (Primary Material)", True)
         shad_alpha = st.slider("Glow Intensity", 0.0, 1.0, 0.25, 0.05)
 
     # ── 10. Titles & text ──
     with st.expander("📝  Titles & Text", expanded=False):
         title_t = st.text_input(
             "Title",
-            "Slope Chart — Material Occurrences Over Time")
+            "Q1AM2 — Concept Growth: Silicon Anode Volume Expansion")
         sub_t   = st.text_input("Subtitle",
-                                "Before 2021 vs After 2021")
+                                "Overcoming volume expansion to maintain cycle life · "
+                                "0-0 attributes excluded")
         xl_t    = st.text_input("X-Axis Label", "Time Period")
-        yl_t    = st.text_input("Y-Axis Label", "Occurrences")
+        yl_t    = st.text_input("Y-Axis Label", "Publication Occurrences")
         wm_t    = st.text_input("Watermark", "")
 
     # ── 11. Axes & grid ──
@@ -733,19 +747,23 @@ with st.sidebar:
 df_active = df[[toggle_states[m] for m in df["Material"]]].copy()
 
 # ─── data table ──────────────────────────────────────────────
-with st.expander("📊  View Raw Data", expanded=False):
+with st.expander("📊  View Raw Data  (0-0 attributes excluded)", expanded=False):
     st.dataframe(
         df[["Material", "Time_1", "Time_2", "Growth_Str"]].rename(
-            columns={"Growth_Str": "Growth"}),
+            columns={"Time_1": "Before 2021",
+                     "Time_2": "After 2021",
+                     "Growth_Str": "Growth"}),
         use_container_width=True, hide_index=True,
         column_config={
-            "Material": st.column_config.TextColumn("Material"),
-            "Time_1":   st.column_config.NumberColumn(
+            "Material": st.column_config.TextColumn("Concept"),
+            "Before 2021": st.column_config.NumberColumn(
                 "Before 2021", format="%d"),
-            "Time_2":   st.column_config.NumberColumn(
+            "After 2021": st.column_config.NumberColumn(
                 "After 2021", format="%d"),
             "Growth":   st.column_config.TextColumn("Growth"),
         })
+    st.caption("Excluded (0 in both periods): sei_formation, cycle_life, "
+               "and other zero-count concepts from the Q1AM2 attribute set.")
 
 # ─── plot ────────────────────────────────────────────────────
 fig = plot_slope_chart(
@@ -803,13 +821,14 @@ if fig is not None:
         with col:
             st.download_button(
                 f"📥 {ext.upper()}", data=buf,
-                file_name=f"slope_chart.{ext}",
+                file_name=f"Q1AM2_slope_chart.{ext}",
                 mime=mime, use_container_width=True)
 
 # ─── footer ──────────────────────────────────────────────────
 st.markdown("---")
 st.caption(
+    f"Q1AM2: Overcoming silicon anode volume expansion to maintain cycle life  ·  "
     f"Growth = ((After − Before) / Before) × 100  ·  "
+    f"0-0 attributes filtered out  ·  "
     f"Available colormaps: **{len(ALL_CMAPS)}**  ·  "
-    "Built with Streamlit & Matplotlib  ·  "
-    "Hover tooltips require `pip install mplcursors`")
+    "Built with Streamlit & Matplotlib")
