@@ -7,7 +7,10 @@
 
 [![meaningtowords](https://img.shields.io/badge/q1pm1cg-v2.0-yellow)](https://concept-growth-battery-materials2.streamlit.app/) (Advanced Visuals, Concept Growth Rate for the Query Q1PM1 - "Invesitgate the ways to increase the energy density of NMC811/graphite cells")
 
-[![meaningtowords](https://img.shields.io/badge/q1pm1cg-v3.0-yellow)](https://concept-growth-battery-materials3.streamlit.app/) (Advanced Visuals, Concept Growth Rate for the Query Q1PM1 - "Invesitgate the ways to increase the energy density of NMC811/graphite cells")
+[![meaningtowords](https://img.shields.io/badge/q1pm1cg-v3.0-yellow)](https://concept-growth-battery-materials3.streamlit.app/) (Advanced Visuals, Colors and Customization 1, Concept Growth Rate for the Query Q1PM1 - "Invesitgate the ways to increase the energy density of NMC811/graphite cells")
+
+
+[![meaningtowords](https://img.shields.io/badge/q1pm1cg-v4.0-yellow)](https://concept-growth-battery-materials4.streamlit.app/) (Advanced Visuals, Colors and Customization 2, Concept Growth Rate for the Query Q1PM1 - "Invesitgate the ways to increase the energy density of NMC811/graphite cells")
 
 [![meaningtowords](https://img.shields.io/badge/q1pm1qdwa-v1.0-green)](https://domain-qwda-weights-allocation1.streamlit.app/) (QDWA for the Query Q1PM1 - "Invesitgate the ways to increase the energy density of NMC811/graphite cells")
 
