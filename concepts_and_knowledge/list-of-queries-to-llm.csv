@@ -1,14 +1,14 @@
-s.n.,categories,queries,acronym, remarks
-1,Performance Metrics, Invesitgate the ways to increase the energy density of NMC811/graphite cells, Q1PM1, Performance Metrics + Cathode + Anode in Unmeasured Query
-2,Performance Metrics, Invesitgate the ways to increase the energy density of graphite cells, Q2PM1, Performance Metrics + Anode in Unmeasured Query
-3,Performance Metrics, Invesitgate the ways to increase the energy density of NMC811 cells, Q3PM1, Performance Metrics + Cathode  in Unmeasured Query
-4,Performance Metrics,"Assess the efficacy of silicon-graphite composite architectures and prelithiation protocols
+s.n.,categories,queries,acronym, remarks, LLM for QWDA
+1,Performance Metrics, Invesitgate the ways to increase the energy density of NMC811/graphite cells, Q1PM1, Performance Metrics + Cathode + Anode in Unmeasured Query, qwen2.5:0.5b
+2,Performance Metrics, Invesitgate the ways to increase the energy density of graphite cells, Q2PM1, Performance Metrics + Anode in Unmeasured Query, qwen2.5:0.5b
+3,Performance Metrics, Invesitgate the ways to increase the energy density of NMC811 cells, Q3PM1, Performance Metrics + Cathode  in Unmeasured Query, qwen2.5:0.5b
+4,Performance Metrics,"Assess the efficacy of silicon-graphite composite architectures and prelithiation protocols, qwen2.5:0.5b
 in overcoming volumetric expansion limits to unlock the theoretical specific capacity
-and cell-level energy density of lithium-ion batteries",Q4PM1,Performance Metrics + Anode Materials in Unmeasured Query
-5,Performance Metrics, Innovative approaches for  increasing specific energy of batteries beyond 500 W h/kg, Q5PM1, Performance Metrics  
-6,Anode Materials, Overcoming silicon anode volume expansion to maintain cycle life, Q1AM2, Anode Materials
-7,Cathode Materials, Mitigating cation mixing in NMC811 cathodes to preserve specific capacity, Q1CM3, Cathode Materials
-8,Manufacturing, What are the effects of calendering pressure and slot coating  on electrode densification? , Q1M4, Manufacturing
-9,Degradation, Mechanisms of SEI growth and transition metal dissolution driving capacity fade, Q1D5, Degradation 
-10,Electrolyte Systems, To optimize FEC additives and solid electrolytes for high rate capability, Q1ES6,  Electrolyte Systems 
+and cell-level energy density of lithium-ion batteries",Q4PM1,Performance Metrics + Anode Materials in Unmeasured Query, qwen2.5:7b
+5,Performance Metrics, Innovative approaches for  increasing specific energy of batteries beyond 500 W h/kg, Q5PM1, Performance Metrics, qwen2.5:0.5b  
+6,Anode Materials, Overcoming silicon anode volume expansion to maintain cycle life, Q1AM2, Anode Materials, qwen2.5:0.5b
+7,Cathode Materials, Mitigating cation mixing in NMC811 cathodes to preserve specific capacity, Q1CM3, Cathode Materials, qwen2.5:0.5b
+8,Manufacturing, What are the effects of calendering pressure and slot coating  on electrode densification? , Q1M4, Manufacturing, qwen2.5:0.5b
+9,Degradation, Mechanisms of SEI growth and transition metal dissolution driving capacity fade, Q1D5, Degradation, qwen2.5:0.5b 
+10,Electrolyte Systems, To optimize FEC additives and solid electrolytes for high rate capability, Q1ES6,  Electrolyte Systems, qwen2.5:0.5b 
 
