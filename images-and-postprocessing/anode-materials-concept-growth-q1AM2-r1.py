@@ -85,13 +85,14 @@ BG_PRESETS = {
 # ═══════════════════════════════════════════════════════════════
 #  DATA — Q1AM2: Overcoming silicon anode volume expansion
 #  *** 0-0 attributes (sei_formation, cycle_life, etc.) excluded ***
+#  *** vc (volume change): 36 → 20, -44.44%  ***
 # ═══════════════════════════════════════════════════════════════
 data_raw = {
-    "Material":  ["Silicon", "FEC", "Graphite", "NMC811"],
-    "Time_1":    [275, 18, 467, 1],
-    "Time_2":    [311, 49, 405, 22],
-    "Symbol":    ["■", "●", "◆", "▲"],
-    "Highlight": [True, False, False, False],
+    "Material":  ["Silicon", "FEC", "Graphite", "NMC811", "VC"],
+    "Time_1":    [275, 18, 467, 1, 36],
+    "Time_2":    [311, 49, 405, 22, 20],
+    "Symbol":    ["■", "●", "◆", "▲", "★"],
+    "Highlight": [True, False, False, False, False],
 }
 df = pd.DataFrame(data_raw)
 df["Growth"]     = ((df["Time_2"] - df["Time_1"]) / df["Time_1"] * 100).round(2)
@@ -103,12 +104,14 @@ DEFAULT_PALETTE = {
     "FEC":      "#F4A261",   # Warm orange — electrolyte additive for SEI stabilisation
     "Graphite": "#457B9D",   # Steel blue  — conventional anode (declining reference)
     "NMC811":   "#2A9D8F",   # Teal        — high-Ni cathode counterpart
+    "VC":       "#7B2D8E",   # Purple      — volume change metric (declining focus)
 }
 MARKER_STYLE = {
     "Silicon":  "s",
     "FEC":      "o",
     "Graphite": "D",
     "NMC811":   "^",
+    "VC":       "p",         # pentagon — visually distinct
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -499,7 +502,7 @@ st.set_page_config(page_title="Q1AM2 — Silicon Anode Volume Expansion", layout
 st.html("""<div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
 <span style="font-size:2.2rem">🔋</span>
 <span style="font-size:1.7rem;font-weight:700;
-background:linear-gradient(90deg,#E63946,#F4A261,#457B9D);
+background:linear-gradient(90deg,#E63946,#F4A261,#7B2D8E,#457B9D);
 -webkit-background-clip:text;-webkit-text-fill-color:transparent">
 Q1AM2 — Silicon Anode Volume Expansion</span></div>
 <p style="color:#888;margin-top:-4px;margin-bottom:16px">
@@ -513,15 +516,17 @@ with st.sidebar:
     # ── 1. Concept toggles ──
     with st.expander("📌 Concept Toggles", expanded=True):
         toggle_states = {}
-        cols = st.columns(2)
+        n_cols = 3
+        cols = st.columns(n_cols)
         for i, mat in enumerate(df["Material"]):
             sym = df[df["Material"] == mat]["Symbol"].values[0]
-            with cols[i % 2]:
+            with cols[i % n_cols]:
                 toggle_states[mat] = st.toggle(
                     f"{sym} {mat}", True, key=f"tog_{mat}")
 
-    st.caption("ℹ️  Concepts with 0 occurrences in both periods "
-               "(e.g. sei_formation, cycle_life) are excluded.")
+    st.caption("ℹ️  Concepts with 0 in both periods "
+               "(e.g. sei_formation, cycle_life) are excluded.\n"
+               "VC = Volume Change (directly related to expansion).")
 
     # ── 2. Label controls ──
     with st.expander("🏷️  Label Controls", expanded=True):
@@ -529,7 +534,7 @@ with st.sidebar:
         show_right = st.checkbox("Right Labels (value + growth)", True)
         c1, c2 = st.columns(2)
         with c1:
-            show_sym  = st.checkbox("Symbols  ● ■ ◆ ▲", True)
+            show_sym  = st.checkbox("Symbols  ● ■ ◆ ▲ ★", True)
         with c2:
             show_gpct = st.checkbox("Growth %", True)
         label_oy   = st.slider("Label Vertical Offset", -150, 150, 0, 5)
@@ -579,28 +584,28 @@ with st.sidebar:
 
     with st.expander("🎨  Per-Concept Styling", expanded=False):
         st.markdown("**Colors**")
-        cc = {}; cols = st.columns(2)
+        cc = {}; cols = st.columns(3)
         for i, mat in enumerate(df["Material"]):
-            with cols[i % 2]:
+            with cols[i % 3]:
                 cc[mat] = st.color_picker(
                     mat, DEFAULT_PALETTE[mat], key=f"clr_{mat}")
         if not use_cmap:
             custom_colors = cc
 
         st.markdown("**Line Styles**")
-        ls_d = {}; cols = st.columns(2)
+        ls_d = {}; cols = st.columns(3)
         for i, mat in enumerate(df["Material"]):
-            with cols[i % 2]:
+            with cols[i % 3]:
                 ls_d[mat] = st.selectbox(
                     mat, ["-", "--", "-.", ":"], key=f"ls_{mat}")
         ln_styles_dict = ls_d
 
         st.markdown("**Markers**")
-        mo = {}; cols = st.columns(2)
+        mo = {}; cols = st.columns(3)
         mk_opts = ["o", "s", "D", "^", "v", "*", "p", "X", "h", "P", "8"]
         for i, mat in enumerate(df["Material"]):
             di = mk_opts.index(MARKER_STYLE[mat])
-            with cols[i % 2]:
+            with cols[i % 3]:
                 mo[mat] = st.selectbox(
                     mat, mk_opts, index=di, key=f"mk_{mat}")
         mk_over_dict = mo
@@ -646,7 +651,7 @@ with st.sidebar:
         ann_mat = st.selectbox(
             "Annotate Concept", a_opts,
             format_func=lambda x: "None" if x is None else x,
-            index=2)  # default: FEC (fastest meaningful growth)
+            index=3)  # default: VC (volume change decline is key insight)
 
         if ann_mat:
             st.markdown("**Prefix Symbol**  *(no emoji — renders "
