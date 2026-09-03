@@ -18,6 +18,7 @@
 
 ## Q5PM1 : 	Innovative approaches for increasing specific energy of batteries beyond 500 W h/kg
 
+[![meaningtowords](https://img.shields.io/badge/q5pm1qdwa-v1.0-yellow)](https://concept-growth-battery-q5pm1performance-metrics6.streamlit.app/ ) (Advanced Visuals, Colors and Customization 2, Concept Growth Rate for the Query Q5PM1 - "Innovative approaches for increasing specific energy of batteries beyond 500 W h/kg", Results same as that for Q1PM1)
 
 [![meaningtowords](https://img.shields.io/badge/q5pm1qdwa-v2.0-green)](https://performance-metricsq5pm1-domain-qwda-weights-allocation3.streamlit.app/) (Advanced Visuals, QDWA for the Query Q5PM1 - "Innovative approaches for increasing specific energy of batteries beyond 500 W h/kg")
 
