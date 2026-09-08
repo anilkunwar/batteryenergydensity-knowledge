@@ -30,3 +30,6 @@
 
 
 [![meaningtowords](https://img.shields.io/badge/q1am2qdwa-v2.0-green)](https://anode-materialsq1am2-domain-category-qdwa-weights4.streamlit.app/) (Advanced Visuals, QDWA for the Query Q1AM2 - "Overcoming silicon anode volume expansion to maintain cycle life")
+
+
+## Q1CM3 : 	Mitigating cation mixing in NMC811 cathodes to preserve specific capacity
