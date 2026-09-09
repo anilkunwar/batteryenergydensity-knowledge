@@ -33,3 +33,6 @@
 
 
 ## Q1CM3 : 	Mitigating cation mixing in NMC811 cathodes to preserve specific capacity
+
+[![meaningtowords](https://img.shields.io/badge/q1cm3cg-v1.0-yellow)](https://concept-growth-battery-q1cm3cathode-materials1.streamlit.app/) (Advanced Visuals, Colors and Customization 2, Concept Growth Rate for the Query Q1CM3 - "	Comparing NMC811, NMC622, NMC532, NMC333, LFP, LCO, and NCA cathode materials: layered oxide versus olivine positive electrode structures with nickel, cobalt, and manganese composition in high-nickel ni-rich cathodes")
+
