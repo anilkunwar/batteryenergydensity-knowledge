@@ -38,6 +38,8 @@
 
 [![meaningtowords](https://img.shields.io/badge/q1cm3qdwa-v2.0-green)]( https://cathode-materialsq1cm3-domain-category-qdwa-weights1.streamlit.app/) (Advanced Visuals, QDWA for the Query Q1CM3- "Comparing NMC811, NMC622, NMC532, NMC333, LFP, LCO, and NCA cathode materials: layered oxide versus olivine positive electrode structures with nickel, cobalt, and manganese composition in high-nickel ni-rich cathodes")
 
+[![meaningtowords](https://img.shields.io/badge/q1cm3qdwa-v2.a0-green)]( https://cathode-materialsq1cm3-domain-category-qdwa-weights1a.streamlit.app/) (Possibility to reorder the features or attributes in x-axis, Advanced Visuals, QDWA for the Query Q1CM3- "Comparing NMC811, NMC622, NMC532, NMC333, LFP, LCO, and NCA cathode materials: layered oxide versus olivine positive electrode structures with nickel, cobalt, and manganese composition in high-nickel ni-rich cathodes")
+
 ## Q1M4 :  What are the effects of calendering pressure and slot coating on electrode densification?
 
 
