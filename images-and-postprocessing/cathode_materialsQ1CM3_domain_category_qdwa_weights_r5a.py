@@ -338,4 +338,542 @@ def plot_slope_chart(df_active, **kw):
                     path_effects=stroke, bbox=bbox_p)
 
         if show_right:
-            gp   = f"  ({row['
+            # Extracted to variable to prevent string literal syntax errors
+            growth_str = row["Growth_Str"]
+            gp = f"  ({growth_str})" if show_gpct else ""
+            rtxt = f"{yv[1]:,}{gp}"
+            ax.text(xp[1] + 0.08, yv[1] + oy, rtxt,
+                    ha="left", va="center", fontsize=fl,
+                    rotation=label_rot, color=color,
+                    fontweight="bold" if star else "normal",
+                    path_effects=stroke, bbox=bbox_p)
+
+    # ─── ANNOTATION ──────────────────────────────────────────
+    if ann_mat and ann_mat in df_active["Material"].values:
+        sr  = df_active[df_active["Material"] == ann_mat].iloc[0]
+        mx  = 1.5
+        my  = (sr["Time_1"] + sr["Time_2"]) / 2  # Midpoint vertically
+        oy2 = my * ann_offset if log_sc else 80
+        ac  = col_for(ann_mat, sr["Growth"])
+
+        prefix  = ann_symbol if ann_symbol else ""
+        sr_growth = sr["Growth_Str"]
+        ann_txt = f"{prefix}  {sr_growth}" if prefix else sr_growth
+
+        bbox_ann = None
+        if ann_box_style:
+            bbox_ann = dict(
+                boxstyle=ann_box_style,
+                facecolor=ax_face,
+                edgecolor=ac,
+                alpha=0.92,
+                linewidth=1.8,
+            )
+
+        ax.annotate(
+            ann_txt,
+            xy=(mx, my),
+            xytext=(mx, my + oy2),
+            fontsize=fs + ann_font_extra,
+            fontweight="bold",
+            color=ac,
+            ha="center",
+            va="bottom",
+            bbox=bbox_ann,
+            arrowprops=dict(
+                arrowstyle=ann_arrow_sty,
+                color=ac,
+                lw=ann_arrow_lw,
+                connectionstyle=f"arc3,rad={ann_curve_rad}",
+                shrinkA=5,
+                shrinkB=8,
+                mutation_scale=20,
+            ),
+            path_effects=[pe.withStroke(linewidth=2, foreground=edge_c)],
+            zorder=25,
+        )
+
+    # ─── axes setup ─────────────────────────────────────────
+    ax.set_xticks([1, 2])
+    # Apply user-defined x-axis order to tick labels
+    ax.set_xticklabels(x_axis_order, fontsize=fs + 2, fontweight="bold", color=txt_c)
+    ax.set_ylabel(yl_text, fontsize=fs + 2, color=txt_c, labelpad=10)
+
+    full_title = title + (f"\n{subtitle}" if subtitle else "")
+    ax.set_title(full_title, fontsize=fs + 5, fontweight="bold",
+                 color=txt_c, pad=15, linespacing=1.4)
+
+    if log_sc:
+        ax.set_yscale("log")
+        ax.set_ylabel(yl_text + "  (log scale)", fontsize=fs + 2,
+                      color=txt_c, labelpad=10)
+    elif y_min is not None and y_max is not None and y_max > y_min:
+        ax.set_ylim(y_min, y_max)
+
+    ax.grid(show_grid, linestyle=grid_style, alpha=0.4, color=grd_c)
+    ax.tick_params(axis="both", labelsize=fs, colors=txt_c,
+                   length=tk_len, width=tk_w)
+    ax.set_xlim(0.5, 2.5)
+
+    # ─── three-color gradient background ──────────────────────
+    if tri_bg:
+        clist = [mcolors.to_rgba(bg1), mcolors.to_rgba(bg2),
+                 mcolors.to_rgba(bg3)]
+        xl, xr = ax.get_xlim()
+        yb, yt = ax.get_ylim()
+        if "Vertical" in bg_dir:
+            grad = np.linspace(1, 0, 256).reshape(-1, 1)
+            grad = np.hstack([grad] * 2)
+        else:
+            grad = np.linspace(0, 1, 256).reshape(1, -1)
+            grad = np.vstack([grad] * 2)
+        cm_bg = mcolors.LinearSegmentedColormap.from_list("tbg", clist,
+                                                          N=256)
+        ax.imshow(grad, aspect="auto", cmap=cm_bg, alpha=bg_alpha,
+                  extent=[xl, xr, yb, yt], origin="lower", zorder=0)
+
+    # ─── colorbar ─────────────────────────────────────────────
+    if use_cmap and show_cbar and cmap_obj and norm_obj:
+        sm = cm.ScalarMappable(cmap=cmap_obj, norm=norm_obj)
+        sm.set_array([])
+        cbar = fig.colorbar(sm, ax=ax, pad=0.02, shrink=0.8)
+        cbar.set_label("Growth (%)", fontsize=fs, color=txt_c)
+        cbar.ax.tick_params(colors=txt_c, labelsize=fs - 1)
+        cbar.outline.set_edgecolor(sp_c)
+        cbar.outline.set_linewidth(0.8)
+
+    # ─── legend ───────────────────────────────────────────────
+    handles, labels = ax.get_legend_handles_labels()
+    new_lab = []
+    for lab in labels:
+        sym = df[df["Material"] == lab]["Symbol"].values[0]
+        if show_gpct:
+            g = df[df["Material"] == lab]["Growth_Str"].values[0]
+            new_lab.append(f"  {sym}  {lab}  ({g})")
+        else:
+            new_lab.append(f"  {sym}  {lab}")
+    if handles and leg_loc != "None":
+        leg = ax.legend(handles, new_lab, loc=leg_loc, fontsize=fs + 1,
+                        frameon=True, fancybox=True, shadow=True,
+                        edgecolor=sp_c,
+                        facecolor=("#FFFFFF" if bg_st == "Light"
+                                   else "#2B2B3D"),
+                        labelcolor=txt_c, borderpad=0.8,
+                        handletextpad=0.6)
+        leg.get_frame().set_linewidth(1.2)
+
+    # ─── watermark ────────────────────────────────────────────
+    if watermark:
+        fig.text(0.99, 0.01, watermark, fontsize=8, color=txt_c,
+                 alpha=0.3, ha="right", va="bottom", style="italic")
+
+    # ─── AXES BOX ─────────────────────────────────────────────
+    ls_map = {"solid": "-", "dashed": "--",
+              "dotted": ":", "dashdot": "-."}
+    bls = ls_map.get(box_ls, "-")
+
+    if box_on:
+        for sp_name in ax.spines.values():
+            sp_name.set_visible(False)
+        if box_shad:
+            ax.add_patch(FancyBboxPatch(
+                (0.004, -0.004), 0.996, 1.004,
+                boxstyle=f"round,pad=0,rounding_size={box_rad}",
+                facecolor="none", edgecolor=(0, 0, 0, 0.12),
+                linewidth=box_w + 2, linestyle=bls,
+                transform=ax.transAxes, zorder=19, clip_on=False))
+        if box_fill:
+            ax.add_patch(FancyBboxPatch(
+                (0, 0), 1, 1,
+                boxstyle=f"round,pad=0,rounding_size={box_rad}",
+                facecolor=(*mcolors.to_rgb(box_fill_col), box_fill_al),
+                edgecolor="none",
+                transform=ax.transAxes, zorder=0, clip_on=False))
+        ax.add_patch(FancyBboxPatch(
+            (0, 0), 1, 1,
+            boxstyle=f"round,pad=0,rounding_size={box_rad}",
+            facecolor="none", edgecolor=box_col,
+            linewidth=box_w, linestyle=bls,
+            transform=ax.transAxes, zorder=20, clip_on=False))
+    else:
+        for sp_name in ax.spines.values():
+            sp_name.set_linewidth(sp_w)
+            sp_name.set_color(sp_c)
+        for sp_name in ("top", "right"):
+            ax.spines[sp_name].set_visible(False)
+
+    fig.tight_layout()
+
+    # ─── hover ────────────────────────────────────────────────
+    if show_hover and HAVE_MPLCURSORS:
+        cursor = mplcursors.cursor(ax.lines, hover=True)
+        cursor.connect("add", lambda sel: sel.annotation.set_text(
+            f"{sel.artist.get_label()}: {sel.target[1]:.0f}"))
+
+    st.pyplot(fig, use_container_width=True)
+    return fig
+
+
+# ═══════════════════════════════════════════════════════════════
+#  STREAMLIT PAGE
+# ═══════════════════════════════════════════════════════════════
+st.set_page_config(page_title="Q1CM3 — Cathode Materials Comparison", layout="wide")
+
+st.html("""<div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+<span style="font-size:2.2rem">🔋</span>
+<span style="font-size:1.7rem;font-weight:700;
+background:linear-gradient(90deg,#E63946,#F4A261,#2A9D8F,#457B9D);
+-webkit-background-clip:text;-webkit-text-fill-color:transparent">
+Q1CM3 — Cathode Materials: Layered Oxide vs Olivine</span></div>
+<p style="color:#888;margin-top:-4px;margin-bottom:16px">
+Comparing NMC811, NMC622, NMC532, NMC333, LFP, LCO, NCA &middot;
+Ni-rich layered oxide cathodes &middot; Early vs Recent Publication Counts</p>""")
+
+# ─── sidebar ─────────────────────────────────────────────────
+with st.sidebar:
+    st.header("🎛️  Controls")
+
+    # ── 1. Concept toggles ──
+    with st.expander("📌 Concept Toggles", expanded=True):
+        toggle_states = {}
+        n_cols = 3
+        cols = st.columns(n_cols)
+        for i, mat in enumerate(df["Material"]):
+            sym = df[df["Material"] == mat]["Symbol"].values[0]
+            with cols[i % n_cols]:
+                toggle_states[mat] = st.toggle(
+                    f"{sym} {mat}", True, key=f"tog_{mat}")
+
+    st.caption("ℹ️  7 cathode materials compared.\n"
+               "Layered oxides: NMC811, NMC622, NMC532, NMC333, LCO, NCA\n"
+               "Olivine: LFP (only non-layered structure).\n"
+               "NMC811 (Ni-rich, ~80% Ni) shows explosive +2100% growth.")
+
+    # ── 2. X-Axis Domain Order ──
+    with st.expander("↔️  X-Axis Domain Order", expanded=True):
+        st.markdown("**Select the order of domains on the x-axis:**")
+        st.caption("Click items to remove/add, or drag selected items to reorder them.")
+        x_axis_order = st.multiselect(
+            "X-Axis Domains",
+            ["Early Period", "Recent Period"],
+            default=["Early Period", "Recent Period"],
+            key="x_order",
+            label_visibility="collapsed"
+        )
+        if len(x_axis_order) < 2:
+            st.warning("Please select exactly 2 domains to display the slope chart correctly.")
+            x_axis_order = ["Early Period", "Recent Period"] # Fallback
+
+    # ── 3. Label controls ──
+    with st.expander("🏷️  Label Controls", expanded=True):
+        show_left  = st.checkbox("Left Labels  (name + value)", True)
+        show_right = st.checkbox("Right Labels (value + growth)", True)
+        c1, c2 = st.columns(2)
+        with c1:
+            show_sym  = st.checkbox("Symbols  ▲ ■ ◆ ● ★ ▼ ✕", True)
+        with c2:
+            show_gpct = st.checkbox("Growth %", True)
+        label_oy   = st.slider("Label Vertical Offset", -150, 150, 0, 5)
+        label_rot  = st.slider("Label Rotation (°)",   -45, 45, 0, 1)
+        label_bg   = st.checkbox("Label Background Boxes", False)
+        conn_lines = st.checkbox("Connector Dots → Labels", False)
+
+    # ── 4. Line / spline style ──
+    with st.expander("✏️  Line & Spline Style", expanded=True):
+        line_w    = st.slider("Spline Thickness (line width)",
+                              0.5, 14.0, 3.0, 0.5)
+        curv      = st.slider("Curvature / Spline Bend",
+                              -1.0, 1.0, 0.0, 0.05,
+                              help="0 = straight · + = bulge up · "
+                                   "− = bulge down")
+        line_alph = st.slider("Line Opacity", 0.1, 1.0, 0.85, 0.05)
+        show_arrow= st.checkbox("Arrow at Line End", False)
+
+    # ── 5. Colormap mode ──
+    with st.expander("🌈  Colormap Mode  (50+ maps)", expanded=False):
+        use_cmap    = st.checkbox("Color Lines by Growth Rate", False)
+        cmap_search = st.text_input("Filter colormaps…", "", key="cms")
+        filtered = ([c for c in ALL_CMAPS
+                     if cmap_search.lower() in c.lower()]
+                    if cmap_search else ALL_CMAPS)
+        cmap_name = st.selectbox(
+            "Colormap", filtered,
+            index=(filtered.index("viridis")
+                   if "viridis" in filtered else 0))
+        cmap_reverse = st.checkbox("Reverse Colormap", False)
+
+        if use_cmap:
+            pc = safe_get_cmap(
+                cmap_name + ("_r" if cmap_reverse else ""))
+            st.image(pc(np.linspace(0, 1, 512).reshape(1, -1)),
+                     use_container_width=True)
+            st.caption(
+                f"Showing: **{cmap_name}**  ·  "
+                f"{len(ALL_CMAPS)} total maps")
+
+        show_cbar = st.checkbox("Show Colorbar", True)
+
+    # ── 6. Per-concept styling ──
+    custom_colors  = DEFAULT_PALETTE.copy()
+    ln_styles_dict = {m: "-" for m in df["Material"]}
+    mk_over_dict   = MARKER_STYLE.copy()
+
+    with st.expander("🎨  Per-Concept Styling", expanded=False):
+        st.markdown("**Colors**")
+        cc = {}; cols = st.columns(3)
+        for i, mat in enumerate(df["Material"]):
+            with cols[i % 3]:
+                cc[mat] = st.color_picker(
+                    mat, DEFAULT_PALETTE[mat], key=f"clr_{mat}")
+        if not use_cmap:
+            custom_colors = cc
+
+        st.markdown("**Line Styles**")
+        ls_d = {}; cols = st.columns(3)
+        for i, mat in enumerate(df["Material"]):
+            with cols[i % 3]:
+                ls_d[mat] = st.selectbox(
+                    mat, ["-", "--", "-.", ":"], key=f"ls_{mat}")
+        ln_styles_dict = ls_d
+
+        st.markdown("**Markers**")
+        mo = {}; cols = st.columns(3)
+        mk_opts = ["o", "s", "D", "^", "v", "*", "p", "X", "h", "P", "8"]
+        for i, mat in enumerate(df["Material"]):
+            di = mk_opts.index(MARKER_STYLE[mat])
+            with cols[i % 3]:
+                mo[mat] = st.selectbox(
+                    mat, mk_opts, index=di, key=f"mk_{mat}")
+        mk_over_dict = mo
+
+    # ── 7. Three-color gradient background ──
+    with st.expander("🌅  Three-Color Gradient / Shade",
+                     expanded=False):
+        tri_bg = st.checkbox("Enable Gradient Background", False)
+        bg_pre = st.selectbox("Preset",
+                              list(BG_PRESETS.keys()), index=0)
+        p1, p2, p3 = BG_PRESETS[bg_pre]
+        cols = st.columns(3)
+        with cols[0]:
+            bg1 = st.color_picker("Top / Left",    p1, key="bg1")
+        with cols[1]:
+            bg2 = st.color_picker("Middle",         p2, key="bg2")
+        with cols[2]:
+            bg3 = st.color_picker("Bottom / Right", p3, key="bg3")
+        bg_alpha = st.slider("Gradient Opacity", 0.0, 0.8, 0.15, 0.05)
+        bg_dir   = st.radio("Direction",
+                            ["Vertical (Top→Bottom)",
+                             "Horizontal (Left→Right)"],
+                            horizontal=True)
+
+    # ── 8. Axes box / border ──
+    with st.expander("📦  Axes Box / Border", expanded=False):
+        box_on  = st.checkbox("Show Axes Box", True)
+        box_col = st.color_picker("Border Color", "#888888", key="bxcol")
+        box_w   = st.slider("Border Width",   0.5, 8.0, 2.0, 0.5)
+        box_ls  = st.selectbox("Border Style",
+                               ["solid", "dashed", "dotted", "dashdot"])
+        box_rad = st.slider("Corner Roundness", 0.0, 0.1, 0.02, 0.005)
+        box_shad= st.checkbox("Drop Shadow", True)
+        box_fill= st.checkbox("Box Fill Tint", False)
+        box_fill_col = st.color_picker("Fill Tint Color",
+                                       "#FFFFFF", key="bxfill")
+        box_fill_al  = st.slider("Fill Tint Opacity",
+                                 0.0, 0.3, 0.05, 0.01)
+
+    # ── 9. Annotation callout ──
+    with st.expander("📌  Annotation Callout", expanded=False):
+        a_opts  = [None] + list(df["Material"])
+        ann_mat = st.selectbox(
+            "Annotate Concept", a_opts,
+            format_func=lambda x: "None" if x is None else x,
+            index=1)  # default: nmc811 (explosive growth is key insight)
+
+        if ann_mat:
+            st.markdown("**Prefix Symbol**  *(no emoji — renders "
+                        "in all backends)*")
+            ann_sym_key = st.selectbox(
+                "Symbol",
+                list(ANN_SYMBOLS.keys()), index=0, key="ann_sym")
+            ann_symbol = ANN_SYMBOLS[ann_sym_key]
+
+            st.markdown("**Text Box**")
+            ann_box_key = st.selectbox(
+                "Box Style",
+                list(ANN_BOX_STYLES.keys()), index=0, key="ann_box")
+            ann_box_style = ANN_BOX_STYLES[ann_box_key]
+
+            st.markdown("**Arrow**")
+            ann_arr_key = st.selectbox(
+                "Arrow Head",
+                list(ANN_ARROW_STYLES.keys()), index=0, key="ann_arr")
+            ann_arrow_sty = ANN_ARROW_STYLES[ann_arr_key]
+
+            ann_arrow_lw  = st.slider("Arrow Thickness",
+                                      1.0, 6.0, 2.5, 0.5)
+            ann_curve_rad = st.slider("Arrow Curve",
+                                      -0.5, 0.5, -0.2, 0.05)
+            ann_offset    = st.slider("Callout Distance",
+                                      0.1, 1.0, 0.35, 0.05)
+            ann_font_extra= st.slider("Extra Font Size",
+                                      0, 6, 2, 1)
+        else:
+            ann_symbol     = "★"
+            ann_box_style  = "round,pad=0.4"
+            ann_arrow_sty  = "->"
+            ann_arrow_lw   = 2.5
+            ann_curve_rad  = -0.2
+            ann_offset     = 0.35
+            ann_font_extra = 2
+
+    # ── 10. Glow / highlight ──
+    with st.expander("✨  Glow / Highlight", expanded=False):
+        hi_star    = st.checkbox("Highlight NMC811 (Primary Ni-rich Cathode)", True)
+        shad_alpha = st.slider("Glow Intensity", 0.0, 1.0, 0.25, 0.05)
+
+    # ── 11. Titles & text ──
+    with st.expander("📝  Titles & Text", expanded=False):
+        title_t = st.text_input(
+            "Title",
+            "Q1CM3 — Cathode Materials: Layered Oxide vs Olivine Structures")
+        sub_t   = st.text_input("Subtitle",
+                                "Ni-rich NMC811 surge vs stable LFP olivine · "
+                                "7 cathode materials compared")
+        xl_t    = st.text_input("X-Axis Label", "Time Period")
+        yl_t    = st.text_input("Y-Axis Label", "Publication Occurrences")
+        wm_t    = st.text_input("Watermark", "")
+
+    # ── 12. Axes & grid ──
+    with st.expander("⚙️  Axes & Grid", expanded=False):
+        log_sc    = st.checkbox("Log Scale (Y)", False)
+        show_grid = st.checkbox("Show Grid",    True)
+        grid_sty  = st.selectbox("Grid Style",
+                                 ["--", ":", "-.", "-"])
+        cust_yl   = st.checkbox("Custom Y-Limits", False)
+        y_min = y_max = None
+        if cust_yl:
+            c1, c2 = st.columns(2)
+            with c1:
+                y_min = st.number_input("Y-min", value=0,
+                                        step=10, key="ymin")
+            with c2:
+                y_max = st.number_input("Y-max", value=120,
+                                        step=10, key="ymax")
+        leg_loc = st.selectbox(
+            "Legend Position",
+            ["None", "best", "upper right", "upper left",
+             "lower left", "lower right", "center"],
+            index=0)
+        st.markdown("**Spines & Ticks**")
+        sp_w   = st.slider("Spine Width",  0.5, 5.0, 1.0, 0.1)
+        tk_len = st.slider("Tick Length",   2, 20, 6, 1)
+        tk_w   = st.slider("Tick Width",    0.5, 5.0, 1.0, 0.1)
+
+    # ── 13. Theme & layout ──
+    st.divider()
+    st.subheader("🎨  Theme & Layout")
+    bg_st  = st.radio("Theme", ["Light", "Dark"], horizontal=True)
+    mk_sz  = st.slider("Marker Size", 4, 28, 10)
+    fs_val = st.slider("Font Size",   8, 26, 12)
+    asp_map = {"4:3": (10, 7.5), "16:9": (12, 6.75),
+               "3:2": (10.5, 7), "1:1": (8, 8), "Wide": (14, 6)}
+    asp = st.selectbox("Aspect Ratio", list(asp_map.keys()), index=0)
+    fw_val, fh_val = asp_map[asp]
+
+    st.divider()
+    show_hover = st.checkbox("Hover Tooltips", True,
+                              disabled=not HAVE_MPLCURSORS)
+
+# ─── active data ─────────────────────────────────────────────
+df_active = df[[toggle_states[m] for m in df["Material"]]].copy()
+
+# ─── data table ──────────────────────────────────────────────
+with st.expander("📊  View Raw Data  (7 cathode materials)", expanded=False):
+    st.dataframe(
+        df[["Material", "Time_1", "Time_2", "Growth_Str"]].rename(
+            columns={"Time_1": "Early Count",
+                     "Time_2": "Recent Count",
+                     "Growth_Str": "Growth"}),
+        use_container_width=True, hide_index=True,
+        column_config={
+            "Material": st.column_config.TextColumn("Concept"),
+            "Early Count": st.column_config.NumberColumn(
+                "Early Count", format="%d"),
+            "Recent Count": st.column_config.NumberColumn(
+                "Recent Count", format="%d"),
+            "Growth":   st.column_config.TextColumn("Growth"),
+        })
+    st.caption("Layered oxide cathodes: NMC811, NMC622, NMC532, NMC333, LCO, NCA.  "
+               "Olivine structure: LFP.  "
+               "NMC811 (Ni-rich, ~80% Ni) is the primary focus with +2100% growth.")
+
+# ─── plot ────────────────────────────────────────────────────
+fig = plot_slope_chart(
+    df_active,
+    show_left_labels=show_left,   show_right_labels=show_right,
+    show_symbols=show_sym,        show_growth_pct=show_gpct,
+    label_offset_y=label_oy,      label_bg=label_bg,
+    label_rotation=label_rot,     connector_lines=conn_lines,
+    line_width=line_w,            curvature=curv,
+    line_alpha=line_alph,         show_arrow=show_arrow,
+    use_cmap=use_cmap,            cmap_name=cmap_name,
+    show_colorbar=show_cbar,      cmap_reverse=cmap_reverse,
+    custom_colors=custom_colors,  line_styles=ln_styles_dict,
+    marker_overrides=mk_over_dict,
+    three_color_bg=tri_bg,        bg_color1=bg1,
+    bg_color2=bg2,                bg_color3=bg3,
+    bg_gradient_alpha=bg_alpha,   bg_gradient_direction=bg_dir,
+    box_visible=box_on,           box_color=box_col,
+    box_width=box_w,              box_linestyle=box_ls,
+    box_corner_radius=box_rad,    box_shadow=box_shad,
+    box_fill=box_fill,            box_fill_color=box_fill_col,
+    box_fill_alpha=box_fill_al,
+    highlight_star=hi_star,       shadow_alpha=shad_alpha,
+    # annotation params
+    annotate_material=ann_mat,    ann_symbol=ann_symbol,
+    ann_box_style=ann_box_style,  ann_arrow_style=ann_arrow_sty,
+    ann_arrow_lw=ann_arrow_lw,    ann_offset=ann_offset,
+    ann_curve_rad=ann_curve_rad,  ann_font_extra=ann_font_extra,
+    # axes
+    log_scale=log_sc,             show_grid=show_grid,
+    grid_style=grid_sty,
+    y_min=y_min,                  y_max=y_max,
+    legend_loc=leg_loc,           spine_width=sp_w,
+    tick_length=tk_len,           tick_width=tk_w,
+    # x-axis order
+    x_axis_order=x_axis_order,
+    title_text=title_t,           subtitle_text=sub_t,
+    xlabel_text=xl_t,             ylabel_text=yl_t,
+    watermark_text=wm_t,
+    bg_style=bg_st,               marker_size=mk_sz,
+    font_size=fs_val,             fig_width=fw_val,
+    fig_height=fh_val,            show_hover=show_hover,
+)
+
+# ─── export ──────────────────────────────────────────────────
+if fig is not None:
+    c1, c2, c3 = st.columns(3)
+    for col, fmt, ext, mime in [
+        (c1, "png", "png",  "image/png"),
+        (c2, "svg", "svg",  "image/svg+xml"),
+        (c3, "pdf", "pdf",  "application/pdf"),
+    ]:
+        buf = io.BytesIO()
+        fig.savefig(buf, format=fmt, dpi=300, bbox_inches="tight",
+                    facecolor=fig.get_facecolor())
+        buf.seek(0)
+        with col:
+            st.download_button(
+                f"📥 {ext.upper()}", data=buf,
+                file_name=f"Q1CM3_cathode_slope_chart.{ext}",
+                mime=mime, use_container_width=True)
+
+# ─── footer ──────────────────────────────────────────────────
+st.markdown("---")
+st.caption(
+    f"Q1CM3: Comparing NMC811, NMC622, NMC532, NMC333, LFP, LCO, and NCA cathode materials — "
+    f"layered oxide vs olivine positive electrode structures  ·  "
+    f"Growth = ((Recent − Early) / Early) × 100  ·  "
+    f"High-Ni (Ni-rich) layered oxides (NMC811, NCA) drive recent research growth  ·  "
+    f"Available colormaps: **{len(ALL_CMAPS)}**  ·  "
+    "Built with Streamlit & Matplotlib")
