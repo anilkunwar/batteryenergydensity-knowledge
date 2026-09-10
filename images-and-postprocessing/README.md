@@ -42,4 +42,6 @@
 
 ## Q1M4 :  What are the effects of calendering pressure and slot coating on electrode densification?
 
+[![meaningtowords](https://img.shields.io/badge/q1m4cg-v1.0-yellow)](https://manufacturingq1m4-domain-category-qdwa-weights1a.streamlit.app/) (Advanced Visuals, Colors and Customization 2, Concept Growth Rate for the Query Q1M4 - "What are the effects of calendering pressure and slot coating on electrode densification?")
+
 [![meaningtowords](https://img.shields.io/badge/q1m4qdwa-v2.a0-green)](https://manufacturingq1m4-domain-category-qdwa-weights1a.streamlit.app/) (Possibility to reorder the features or attributes in x-axis, Advanced Visuals, QDWA for the Query Q1M4- "What are the effects of calendering pressure and slot coating on electrode densification?")
