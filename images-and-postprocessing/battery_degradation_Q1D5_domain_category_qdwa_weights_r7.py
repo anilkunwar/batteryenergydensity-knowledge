@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -373,4 +372,3 @@ try:
                 unsafe_allow_html=True)
 except Exception as e:
     st.error(f"Rendering failed — usually a LaTeX/mathtext syntax error in a label: {e}")
-```
