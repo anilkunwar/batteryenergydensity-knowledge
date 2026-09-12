@@ -48,7 +48,7 @@
 
 ## Q1D5 :  Mechanisms of SEI growth and transition metal dissolution driving capacity fade
 
-[![meaningtowords](https://img.shields.io/badge/q1m4cg-v1.0-yellow)](https://concept-growth-battery-q1d5-battery-degradation1.streamlit.app/) (Advanced Visuals, Colors and Customization 2, Concept Growth Rate for the Query Q1D5 - "Mechanisms of SEI growth and transition metal dissolution driving capacity fade")
+[![meaningtowords](https://img.shields.io/badge/q1d5cg-v1.0-yellow)](https://concept-growth-battery-q1d5-battery-degradation1.streamlit.app/) (Advanced Visuals, Colors and Customization 2, Concept Growth Rate for the Query Q1D5 - "Mechanisms of SEI growth and transition metal dissolution driving capacity fade")
 
-[![meaningtowords](https://img.shields.io/badge/q1m4qdwa-v2.a0-green)](https://batterydegradationq1d5--domain-category-qdwa-weights1a.streamlit.app/) (Possibility to reorder the features or attributes in x-axis, Advanced Visuals, QDWA for the Query Q1D5- "Mechanisms of SEI growth and transition metal dissolution driving capacity fade")
+[![meaningtowords](https://img.shields.io/badge/q1d5qdwa-v2.a0-green)](https://batterydegradationq1d5--domain-category-qdwa-weights1a.streamlit.app/) (Possibility to reorder the features or attributes in x-axis, Advanced Visuals, QDWA for the Query Q1D5- "Mechanisms of SEI growth and transition metal dissolution driving capacity fade")
 
