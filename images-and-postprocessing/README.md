@@ -58,3 +58,6 @@
 
 [![meaningtowords](https://img.shields.io/badge/q1es6qdwa-v2.a0-green)](electrolyte-systems-q1es6-domain-category-qdwa-weights1a) (Possibility to reorder the features or attributes in x-axis, Advanced Visuals, QDWA for the Query Q1ES6 - 	"To optimize FEC additives and solid electrolytes for high rate capability")
 
+
+## Six Domains Concepts Graph (Q1PM1 is utilized)
+
