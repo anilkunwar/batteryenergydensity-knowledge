@@ -52,3 +52,9 @@
 
 [![meaningtowords](https://img.shields.io/badge/q1d5qdwa-v2.a0-green)](https://batterydegradationq1d5--domain-category-qdwa-weights1a.streamlit.app/) (Possibility to reorder the features or attributes in x-axis, Advanced Visuals, QDWA for the Query Q1D5- "Mechanisms of SEI growth and transition metal dissolution driving capacity fade")
 
+## Q1ES6 :  	To optimize FEC additives and solid electrolytes for high rate capability
+
+[![meaningtowords](https://img.shields.io/badge/q1es6cg-v1.0-yellow)](https://concept-growth-battery-q1es6-electrolyte-systems1.streamlit.app/) (Advanced Visuals, Colors and Customization 2, Concept Growth Rate for the Query Q1ES6 - "	To optimize FEC additives and solid electrolytes for high rate capability")
+
+[![meaningtowords](https://img.shields.io/badge/q1es6qdwa-v2.a0-green)](electrolyte-systems-q1es6-domain-category-qdwa-weights1a) (Possibility to reorder the features or attributes in x-axis, Advanced Visuals, QDWA for the Query Q1ES6 - 	"To optimize FEC additives and solid electrolytes for high rate capability")
+
