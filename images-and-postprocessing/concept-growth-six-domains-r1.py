@@ -90,7 +90,27 @@ BG_PRESETS = {
 #  Concepts where Early Count, Recent Count AND Growth Rate are all 0
 #  are excluded.
 # ═══════════════════════════════════════════════════════════════
-CSV_DIR = "concept-growth-datasets"
+
+def get_data_dir():
+    """Robustly find the concept-growth-datasets directory."""
+    dir_name = "concept-growth-datasets"
+    
+    # 1. Try relative to this script file (works for local & Streamlit Cloud)
+    if "__file__" in globals():
+        base = os.path.dirname(os.path.abspath(__file__))
+        path1 = os.path.join(base, dir_name)
+        if os.path.isdir(path1):
+            return path1
+            
+    # 2. Try current working directory
+    path2 = os.path.join(os.getcwd(), dir_name)
+    if os.path.isdir(path2):
+        return path2
+        
+    # 3. Fallback to relative path for error message
+    return dir_name
+
+CSV_DIR = get_data_dir()
 
 SYMBOLS_POOL = ["●", "■", "◆", "▲", "▶", "✦", "▼", "◉", "◇", "◈", "▣", "◐"]
 MARKERS_POOL = ["o", "s", "D", "^", ">", "*", "v", "p", "X", "h", "P", "8"]
@@ -111,16 +131,9 @@ def _find_col(df_cols, keyword):
 
 
 def load_all_concepts(csv_dir):
-    """Load every CSV in csv_dir, combine and filter all-zero rows.
-
-    Expected CSV header:  ,Concept,Early Count,Recent Count,Growth Rate (%)
-    Returns a DataFrame with columns:
-      Concept, Early Count, Recent Count, Growth Rate (%), Domain
-    Excludes concepts where Early Count == 0 AND Recent Count == 0 AND
-    Growth Rate (%) == 0.
-    """
+    """Load every CSV in csv_dir, combine and filter all-zero rows."""
     if not os.path.isdir(csv_dir):
-        return None, f"Directory '{csv_dir}' not found."
+        return None, f"Directory '{csv_dir}' not found. Make sure the folder is in the same directory as your app script."
 
     csv_files = sorted(glob.glob(os.path.join(csv_dir, "*.csv")))
     if not csv_files:
