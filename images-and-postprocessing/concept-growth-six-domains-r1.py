@@ -756,7 +756,8 @@ with st.sidebar:
             mat = row["Material"]
             if i % 3 == 0:
                 cols = st.columns(3)
-            di = mk_opts.index(MARKER_STYLE.get(mat, "o"))
+            _mk = MARKER_STYLE.get(mat, "o")
+            di = mk_opts.index(_mk) if _mk in mk_opts else 0
             with cols[i % 3]:
                 mo[mat] = st.selectbox(
                     mat[:20], mk_opts, index=di, key=f"mk_{rk}")
