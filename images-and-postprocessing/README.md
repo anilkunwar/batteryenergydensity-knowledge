@@ -62,3 +62,5 @@
 ## Six Domains Concepts Graph (Q1PM1 is utilized)
 
 [![meaningtowords](https://img.shields.io/badge/sixdomainscg-v1.0-yellow)](https://concept-growth-six-domains1.streamlit.app/) (Advanced Visuals, Colors and Customization 2, Concept Growth Rate for six queries, for the domain "Performance Metrics", the corresponding datasets are from the query Q1PM1.)
+
+[![meaningtowords](https://img.shields.io/badge/sixdomainscg-v2.0-yellow)](https://concept-growth-six-domains2.streamlit.app/) (Advanced Visuals, Colors and Customization 2, Concept Growth Rate for six queries, for the domain "Performance Metrics", the corresponding datasets are from the query Q1PM1.)
