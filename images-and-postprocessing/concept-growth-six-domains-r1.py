@@ -86,25 +86,28 @@ BG_PRESETS = {
 
 # ═══════════════════════════════════════════════════════════════
 #  DATA LOADING — read all CSVs from concept-growth-datasets/
+#  Each CSV header:  ,Concept,Early Count,Recent Count,Growth Rate (%)
+#  Concepts where Early Count, Recent Count AND Growth Rate are all 0
+#  are excluded.
 # ═══════════════════════════════════════════════════════════════
 
 def get_data_dir():
     """Robustly find the concept-growth-datasets directory."""
     dir_name = "concept-growth-datasets"
-    
-    # 1. Try relative to this script file
+
+    # 1. Try relative to this script file (works for local & Streamlit Cloud)
     if "__file__" in globals():
         base = os.path.dirname(os.path.abspath(__file__))
         path1 = os.path.join(base, dir_name)
         if os.path.isdir(path1):
             return path1
-            
+
     # 2. Try current working directory
     path2 = os.path.join(os.getcwd(), dir_name)
     if os.path.isdir(path2):
         return path2
-        
-    # 3. Fallback
+
+    # 3. Fallback to relative path for error message
     return dir_name
 
 CSV_DIR = get_data_dir()
@@ -145,6 +148,7 @@ def load_all_concepts(csv_dir):
             errors.append(f"{os.path.basename(csv_path)}: {e}")
             continue
 
+        # Drop unnamed index column if present
         d = d.loc[:, ~d.columns.astype(str).str.startswith("Unnamed")]
         d.columns = [str(c).strip() for c in d.columns]
 
@@ -160,11 +164,13 @@ def load_all_concepts(csv_dir):
         sub = d[[c_concept, c_early, c_recent, c_growth]].copy()
         sub.columns = ["Concept", "Early Count", "Recent Count", "Growth Rate (%)"]
 
+        # Coerce numerics
         sub["Early Count"]      = pd.to_numeric(sub["Early Count"],      errors="coerce").fillna(0)
         sub["Recent Count"]     = pd.to_numeric(sub["Recent Count"],     errors="coerce").fillna(0)
         sub["Growth Rate (%)"]  = pd.to_numeric(sub["Growth Rate (%)"],  errors="coerce").fillna(0)
+
+        # Domain label from file name
         sub["Domain"] = os.path.splitext(os.path.basename(csv_path))[0]
-        
         frames.append(sub)
 
     if not frames:
@@ -181,29 +187,12 @@ def load_all_concepts(csv_dir):
     n_excluded = int(mask_zero.sum())
     combined = combined[~mask_zero].reset_index(drop=True)
 
-    # ─── Aggregate duplicates by Concept name across domains ───
-    combined = combined.groupby("Concept", as_index=False).agg({
-        "Early Count": "sum",
-        "Recent Count": "sum",
-        "Domain": lambda x: ", ".join(sorted(set(x)))
-    })
-
-    # Recalculate Growth Rate (%) for the aggregated concepts
-    def calc_growth(row):
-        if row["Early Count"] == 0:
-            if row["Recent Count"] == 0:
-                return 0.0
-            return 100.0
-        return ((row["Recent Count"] - row["Early Count"]) / row["Early Count"]) * 100
-
-    combined["Growth Rate (%)"] = combined.apply(calc_growth, axis=1).round(2)
-    combined = combined.sort_values("Growth Rate (%)", ascending=False).reset_index(drop=True)
-
     return combined, f"Loaded {len(csv_files)} CSV file(s) · " \
-                     f"{len(combined)} concept(s) after filtering & aggregation · " \
+                     f"{len(combined)} concept(s) after filtering · " \
                      f"{n_excluded} all-zero concept(s) excluded."
 
 
+# Load data once (cache via st.cache_data for speed)
 @st.cache_data(show_spinner=False)
 def _cached_load(csv_dir):
     return load_all_concepts(csv_dir)
@@ -215,12 +204,18 @@ if _combined_df is None or len(_combined_df) == 0:
     st.error(f"⚠️  Could not load concept data.\n\n{_load_msg}")
     st.stop()
 
+# Sort by Growth Rate (%) descending — highest growth first (becomes highlighted)
+_combined_df = _combined_df.sort_values(
+    "Growth Rate (%)", ascending=False
+).reset_index(drop=True)
+
+# Build working DataFrame in the format expected by the plotter
 df = pd.DataFrame({
     "Material":  _combined_df["Concept"].astype(str).values,
     "Time_1":    _combined_df["Early Count"].astype(float).values,
     "Time_2":    _combined_df["Recent Count"].astype(float).values,
     "Symbol":    [SYMBOLS_POOL[i % len(SYMBOLS_POOL)] for i in range(len(_combined_df))],
-    "Highlight": [i == 0 for i in range(len(_combined_df))],
+    "Highlight": [i == 0 for i in range(len(_combined_df))],   # top-growth concept
     "Domain":    _combined_df["Domain"].astype(str).values,
 })
 df["Growth"]     = _combined_df["Growth Rate (%)"].astype(float).round(2).values
@@ -228,12 +223,21 @@ df["Growth_Str"] = df["Growth"].apply(
     lambda g: f"+{g:.2f}%" if g >= 0 else f"{g:.2f}%"
 )
 
+# ─── UNIQUE ROW KEY (fixes StreamlitDuplicateElementKey) ───
+# Concept names can repeat across domain CSVs (e.g. "nmc811" in two
+# files). Every widget key is based on this unique key instead of the
+# concept name. Format: "domain::concept"
+df["RowKey"] = df["Domain"].astype(str) + "::" + df["Material"].astype(str)
+
+# Dynamic palette / marker per concept (keyed by name — same-named
+# concepts across domains intentionally share a color/marker)
 DEFAULT_PALETTE = {m: PALETTE_POOL[i % len(PALETTE_POOL)]
-                   for i, m in enumerate(df["Material"])}
+                   for i, m in enumerate(df["Material"].unique())}
 MARKER_STYLE    = {m: MARKERS_POOL[i % len(MARKERS_POOL)]
-                   for i, m in enumerate(df["Material"])}
+                   for i, m in enumerate(df["Material"].unique())}
 
 HIGHLIGHT_CONCEPT = df.iloc[0]["Material"] if len(df) else None
+HIGHLIGHT_ROWKEY  = df.iloc[0]["RowKey"]   if len(df) else None
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -295,7 +299,7 @@ def plot_slope_chart(df_active, **kw):
     hi_star   = kw.get("highlight_star",    True)
     shad_alpha= kw.get("shadow_alpha",      0.25)
 
-    ann_mat       = kw.get("annotate_material",  None)
+    ann_rowkey    = kw.get("annotate_rowkey",    None)
     ann_symbol    = kw.get("ann_symbol",         "★")
     ann_box_style = kw.get("ann_box_style",      "round,pad=0.4")
     ann_arrow_sty = kw.get("ann_arrow_style",    "->")
@@ -433,12 +437,13 @@ def plot_slope_chart(df_active, **kw):
                     fontweight="bold" if star else "normal",
                     path_effects=stroke, bbox=bbox_p)
 
-    if ann_mat and ann_mat in df_active["Material"].values:
-        sr  = df_active[df_active["Material"] == ann_mat].iloc[0]
+    # ─── ANNOTATION (keyed by unique RowKey) ─────────────────
+    if ann_rowkey and ann_rowkey in df_active["RowKey"].values:
+        sr  = df_active[df_active["RowKey"] == ann_rowkey].iloc[0]
         mx  = 1.5
         my  = (sr["Time_1"] + sr["Time_2"]) / 2
         oy2 = my * ann_offset if log_sc else 80
-        ac  = col_for(ann_mat, sr["Growth"])
+        ac  = col_for(sr["Material"], sr["Growth"])
 
         prefix  = ann_symbol if ann_symbol else ""
         ann_txt = f"{prefix}  {sr['Growth_Str']}" if prefix else sr['Growth_Str']
@@ -595,7 +600,7 @@ def plot_slope_chart(df_active, **kw):
 # ═══════════════════════════════════════════════════════════════
 st.set_page_config(page_title="Concept Growth Slope Chart", layout="wide")
 
-_domains = sorted(set([d for domains in df["Domain"] for d in domains.split(", ")]))
+_domains = sorted(df["Domain"].unique())
 _n_concepts = len(df)
 _top_growth = df.iloc[0]["Growth"] if _n_concepts else 0
 
@@ -613,50 +618,57 @@ Highest growth: <b>{HIGHLIGHT_CONCEPT}</b>
 
 st.caption("ℹ️  " + _load_msg)
 
+# ─── sidebar ─────────────────────────────────────────────────
 with st.sidebar:
     st.header("🎛️  Controls")
 
+    # ── 1. Domain filter + concept toggles ──
     with st.expander("📌 Concept Toggles", expanded=True):
+        # Domain filter
         sel_domains = st.multiselect(
             "Filter by Domain file", _domains, default=_domains,
             key="domain_filter")
 
-        visible_concepts = df[df["Domain"].apply(
-            lambda domains: any(d in domains.split(", ") for d in sel_domains)
-        )]["Material"].tolist()
+        # Visible slice (deterministic order — sorted by growth in df)
+        vis_df = df[df["Domain"].isin(sel_domains)].reset_index(drop=True)
+        visible_keys  = vis_df["RowKey"].tolist()
+        _n_visible    = len(vis_df)
 
+        # Quick-select buttons (unique RowKey-based session keys)
         cc1, cc2, cc3 = st.columns(3)
         with cc1:
             if st.button("✅ Select All", use_container_width=True):
-                for m in visible_concepts:
-                    st.session_state[f"tog_{m}"] = True
+                for rk in visible_keys:
+                    st.session_state[f"tog_{rk}"] = True
         with cc2:
             if st.button("❌ Clear All", use_container_width=True):
-                for m in visible_concepts:
-                    st.session_state[f"tog_{m}"] = False
+                for rk in visible_keys:
+                    st.session_state[f"tog_{rk}"] = False
         with cc3:
             if st.button("⭐ Top 5 Growth", use_container_width=True):
-                for m in df["Material"]:
-                    st.session_state[f"tog_{m}"] = False
-                for m in df.head(5)["Material"]:
-                    st.session_state[f"tog_{m}"] = True
+                top5 = set(df.head(5)["RowKey"].tolist())
+                for rk in visible_keys:
+                    st.session_state[f"tog_{rk}"] = rk in top5
 
         toggle_states = {}
         n_cols = 3
         cols = st.columns(n_cols)
-        for i, mat in enumerate(visible_concepts):
-            sym = df[df["Material"] == mat]["Symbol"].values[0]
-            default = (i < 5)
+        for i, row in vis_df.iterrows():
+            rk   = row["RowKey"]
+            mat  = row["Material"]
+            sym  = row["Symbol"]
+            default = (i < 5)  # default-select top 5
             with cols[i % n_cols]:
-                cur = st.session_state.get(f"tog_{mat}", default)
-                toggle_states[mat] = st.toggle(
-                    f"{sym} {mat}", cur, key=f"tog_{mat}")
+                cur = st.session_state.get(f"tog_{rk}", default)
+                toggle_states[rk] = st.toggle(
+                    f"{sym} {mat}", cur, key=f"tog_{rk}")
 
         st.caption(f"ℹ️  {_n_concepts} concept(s) available "
-                   f"({len(visible_concepts)} shown after domain filter).  "
+                   f"({_n_visible} shown after domain filter).  "
                    f"Top growth: {HIGHLIGHT_CONCEPT} "
                    f"({df.iloc[0]['Growth_Str']}).")
 
+    # ── 2. Label controls ──
     with st.expander("🏷️  Label Controls", expanded=True):
         show_left  = st.checkbox("Left Labels  (name + value)", True)
         show_right = st.checkbox("Right Labels (value + growth)", True)
@@ -670,6 +682,7 @@ with st.sidebar:
         label_bg   = st.checkbox("Label Background Boxes", False)
         conn_lines = st.checkbox("Connector Dots → Labels", False)
 
+    # ── 3. Line / spline style ──
     with st.expander("✏️  Line & Spline Style", expanded=True):
         line_w    = st.slider("Spline Thickness (line width)",
                               0.5, 14.0, 3.0, 0.5)
@@ -680,6 +693,7 @@ with st.sidebar:
         line_alph = st.slider("Line Opacity", 0.1, 1.0, 0.85, 0.05)
         show_arrow= st.checkbox("Arrow at Line End", False)
 
+    # ── 4. Colormap mode ──
     with st.expander("🌈  Colormap Mode  (50+ maps)", expanded=False):
         use_cmap    = st.checkbox("Color Lines by Growth Rate", False)
         cmap_search = st.text_input("Filter colormaps…", "", key="cms")
@@ -702,45 +716,53 @@ with st.sidebar:
                 f"{len(ALL_CMAPS)} total maps")
         show_cbar = st.checkbox("Show Colorbar", True)
 
+    # ── 5. Per-concept styling (unique RowKey widget keys) ──
     custom_colors  = DEFAULT_PALETTE.copy()
-    ln_styles_dict = {m: "-" for m in df["Material"]}
+    ln_styles_dict = {m: "-" for m in df["Material"].unique()}
     mk_over_dict   = MARKER_STYLE.copy()
 
     with st.expander("🎨  Per-Concept Styling", expanded=False):
-        st.markdown(f"**Colors** ({len(visible_concepts)} visible)")
+        st.markdown(f"**Colors** ({_n_visible} visible)")
         cc = {}
-        for i, mat in enumerate(visible_concepts):
+        for i, row in vis_df.iterrows():
+            rk  = row["RowKey"]
+            mat = row["Material"]
             if i % 3 == 0:
                 cols = st.columns(3)
             with cols[i % 3]:
                 cc[mat] = st.color_picker(
                     mat[:20], DEFAULT_PALETTE.get(mat, "#888888"),
-                    key=f"clr_{mat}")
+                    key=f"clr_{rk}")
         if not use_cmap:
             custom_colors.update(cc)
 
         st.markdown("**Line Styles**")
         ls_d = {}
-        for i, mat in enumerate(visible_concepts):
+        for i, row in vis_df.iterrows():
+            rk  = row["RowKey"]
+            mat = row["Material"]
             if i % 3 == 0:
                 cols = st.columns(3)
             with cols[i % 3]:
                 ls_d[mat] = st.selectbox(
-                    mat[:20], ["-", "--", "-.", ":"], key=f"ls_{mat}")
+                    mat[:20], ["-", "--", "-.", ":"], key=f"ls_{rk}")
         ln_styles_dict.update(ls_d)
 
         st.markdown("**Markers**")
         mo = {}
         mk_opts = ["o", "s", "D", "^", "v", "*", "p", "X", "h", "P", "8"]
-        for i, mat in enumerate(visible_concepts):
+        for i, row in vis_df.iterrows():
+            rk  = row["RowKey"]
+            mat = row["Material"]
             if i % 3 == 0:
                 cols = st.columns(3)
             di = mk_opts.index(MARKER_STYLE.get(mat, "o"))
             with cols[i % 3]:
                 mo[mat] = st.selectbox(
-                    mat[:20], mk_opts, index=di, key=f"mk_{mat}")
+                    mat[:20], mk_opts, index=di, key=f"mk_{rk}")
         mk_over_dict.update(mo)
 
+    # ── 6. Three-color gradient background ──
     with st.expander("🌅  Three-Color Gradient / Shade", expanded=False):
         tri_bg = st.checkbox("Enable Gradient Background", False)
         bg_pre = st.selectbox("Preset", list(BG_PRESETS.keys()), index=0)
@@ -758,6 +780,7 @@ with st.sidebar:
                              "Horizontal (Left→Right)"],
                             horizontal=True)
 
+    # ── 7. Axes box / border ──
     with st.expander("📦  Axes Box / Border", expanded=False):
         box_on  = st.checkbox("Show Axes Box", True)
         box_col = st.color_picker("Border Color", "#888888", key="bxcol")
@@ -772,15 +795,18 @@ with st.sidebar:
         box_fill_al  = st.slider("Fill Tint Opacity",
                                  0.0, 0.3, 0.05, 0.01)
 
+    # ── 8. Annotation callout (unique RowKey options) ──
     with st.expander("📌  Annotation Callout", expanded=False):
-        a_opts  = [None] + list(df["Material"])
-        default_idx = 1 if HIGHLIGHT_CONCEPT else 0
-        ann_mat = st.selectbox(
+        a_opts  = [None] + list(df["RowKey"])
+        default_idx = 1 if HIGHLIGHT_ROWKEY else 0
+        ann_rowkey = st.selectbox(
             "Annotate Concept", a_opts,
-            format_func=lambda x: "None" if x is None else x,
+            format_func=lambda x: (
+                "None" if x is None
+                else f"{x.split('::', 1)[1]}  ({x.split('::', 1)[0]})"),
             index=default_idx)
 
-        if ann_mat:
+        if ann_rowkey:
             st.markdown("**Prefix Symbol**  *(no emoji — renders "
                         "in all backends)*")
             ann_sym_key = st.selectbox(
@@ -817,12 +843,14 @@ with st.sidebar:
             ann_offset     = 0.35
             ann_font_extra = 2
 
+    # ── 9. Glow / highlight ──
     with st.expander("✨  Glow / Highlight", expanded=False):
         hi_star = st.checkbox(
             f"Highlight {HIGHLIGHT_CONCEPT} (Highest Growth)",
             True)
         shad_alpha = st.slider("Glow Intensity", 0.0, 1.0, 0.25, 0.05)
 
+    # ── 10. Titles & text ──
     with st.expander("📝  Titles & Text", expanded=False):
         title_t = st.text_input(
             "Title",
@@ -834,6 +862,7 @@ with st.sidebar:
         yl_t    = st.text_input("Y-Axis Label", "Publication Occurrences")
         wm_t    = st.text_input("Watermark", "")
 
+    # ── 11. Axes & grid ──
     with st.expander("⚙️  Axes & Grid", expanded=False):
         log_sc    = st.checkbox("Log Scale (Y)", False)
         show_grid = st.checkbox("Show Grid",    True)
@@ -859,6 +888,7 @@ with st.sidebar:
         tk_len = st.slider("Tick Length",   2, 20, 6, 1)
         tk_w   = st.slider("Tick Width",    0.5, 5.0, 1.0, 0.1)
 
+    # ── 12. Theme & layout ──
     st.divider()
     st.subheader("🎨  Theme & Layout")
     bg_st  = st.radio("Theme", ["Light", "Dark"], horizontal=True)
@@ -873,9 +903,11 @@ with st.sidebar:
     show_hover = st.checkbox("Hover Tooltips", True,
                               disabled=not HAVE_MPLCURSORS)
 
-active_mats = [m for m in df["Material"] if toggle_states.get(m, False)]
-df_active = df[df["Material"].isin(active_mats)].copy()
+# ─── active data (unique RowKeys) ────────────────────────────
+active_keys = [rk for rk, on in toggle_states.items() if on]
+df_active = df[df["RowKey"].isin(active_keys)].copy()
 
+# ─── data table ──────────────────────────────────────────────
 with st.expander(f"📊  View Raw Data  ({len(df)} concepts)", expanded=False):
     view_df = df[["Material", "Domain", "Time_1", "Time_2", "Growth_Str"]].copy()
     st.dataframe(
@@ -887,7 +919,7 @@ with st.expander(f"📊  View Raw Data  ({len(df)} concepts)", expanded=False):
         use_container_width=True, hide_index=True,
         column_config={
             "Concept":      st.column_config.TextColumn("Concept"),
-            "Domain":       st.column_config.TextColumn("Domain File(s)"),
+            "Domain":       st.column_config.TextColumn("Domain File"),
             "Early Count":  st.column_config.NumberColumn(
                 "Early Count", format="%d"),
             "Recent Count": st.column_config.NumberColumn(
@@ -901,6 +933,7 @@ with st.expander(f"📊  View Raw Data  ({len(df)} concepts)", expanded=False):
         f"Highest growth: {HIGHLIGHT_CONCEPT} "
         f"({df.iloc[0]['Growth_Str']}).")
 
+# ─── plot ────────────────────────────────────────────────────
 fig = plot_slope_chart(
     df_active,
     show_left_labels=show_left,   show_right_labels=show_right,
@@ -922,7 +955,7 @@ fig = plot_slope_chart(
     box_fill=box_fill,            box_fill_color=box_fill_col,
     box_fill_alpha=box_fill_al,
     highlight_star=hi_star,       shadow_alpha=shad_alpha,
-    annotate_material=ann_mat,    ann_symbol=ann_symbol,
+    annotate_rowkey=ann_rowkey,   ann_symbol=ann_symbol,
     ann_box_style=ann_box_style,  ann_arrow_style=ann_arrow_sty,
     ann_arrow_lw=ann_arrow_lw,    ann_offset=ann_offset,
     ann_curve_rad=ann_curve_rad,  ann_font_extra=ann_font_extra,
@@ -939,6 +972,7 @@ fig = plot_slope_chart(
     fig_height=fh_val,            show_hover=show_hover,
 )
 
+# ─── export ──────────────────────────────────────────────────
 if fig is not None:
     c1, c2, c3 = st.columns(3)
     for col, fmt, ext, mime in [
@@ -956,6 +990,7 @@ if fig is not None:
                 file_name=f"concept_growth_slope_chart.{ext}",
                 mime=mime, use_container_width=True)
 
+# ─── footer ──────────────────────────────────────────────────
 st.markdown("---")
 st.caption(
     f"Concept Growth Slope Chart  ·  "
