@@ -1,10 +1,3 @@
-This error happens because some concept names in your CSVs have trailing spaces or slight character differences (e.g., `"nmc811"` vs `"nmc811 "`), causing the grouping to fail and resulting in duplicate widget keys in Streamlit.
-
-I've added `.str.strip()` when loading the CSVs to clean up concept names, and I've enforced uniqueness on the concept list to completely prevent duplicate widget keys.
-
-Here is the updated code:
-
-```python
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -977,4 +970,4 @@ st.caption(
     f"All-zero concepts excluded  ·  "
     f"Available colormaps: **{len(ALL_CMAPS)}**  ·  "
     "Built with Streamlit & Matplotlib")
-```
+
