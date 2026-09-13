@@ -1037,7 +1037,7 @@ with st.sidebar:
     st.subheader("🎨  Theme & Layout")
     bg_st  = st.radio("Theme", ["Light", "Dark"], horizontal=True)
     mk_sz  = st.slider("Marker Size", 4, 28, 10)
-    fs_val = st.slider("Font Size",   8, 26, 12)
+    fs_val = st.slider("Font Size",   8, 56, 32)
     
     c_fig1, c_fig2 = st.columns(2)
     with c_fig1:
