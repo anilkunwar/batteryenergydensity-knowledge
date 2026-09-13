@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
-import matplotlib.lines as mlines  # Added for better legend handles
+import matplotlib.lines as mlines
 from matplotlib.patches import FancyBboxPatch
 import numpy as np
 import io
@@ -86,7 +86,7 @@ BG_PRESETS = {
 }
 
 # ═══════════════════════════════════════════════════════════════
-#  DATA LOADING — read all CSVs from concept-growth-datasets/
+#  DATA LOADING
 # ═══════════════════════════════════════════════════════════════
 def get_data_dir():
     dir_name = "concept-growth-datasets"
@@ -317,7 +317,12 @@ def plot_slope_chart(df_active, **kw):
     grid_style= kw.get("grid_style",    "--")
     y_min     = kw.get("y_min",         None)
     y_max     = kw.get("y_max",         None)
+    
+    # ── LEGEND CONTROLS ──
     leg_loc   = kw.get("legend_loc",    "None")
+    leg_outside = kw.get("legend_outside", True)  # New default
+    leg_ncol  = kw.get("legend_ncol", 3)          # New default
+    
     sp_w      = kw.get("spine_width",   1.0)
     tk_len    = kw.get("tick_length",   6)
     tk_w      = kw.get("tick_width",    1.0)
@@ -442,7 +447,7 @@ def plot_slope_chart(df_active, **kw):
                     fontweight="bold" if star else "normal",
                     path_effects=stroke, bbox=bbox_p)
 
-    # ─── ANNOTATION (Skipped if ann_rowkey is None) ────────────
+    # ─── ANNOTATION ──────────────────────────────────────────
     if ann_rowkey and ann_rowkey in df_active["RowKey"].values:
         sr  = df_active[df_active["RowKey"] == ann_rowkey].iloc[0]
         mx  = 1.5
@@ -531,7 +536,7 @@ def plot_slope_chart(df_active, **kw):
         cbar.outline.set_edgecolor(sp_c)
         cbar.outline.set_linewidth(0.8)
 
-    # ─── LEGEND GENERATION (Using Line2D for perfect accuracy) ───
+    # ─── LEGEND GENERATION ───────────────────────────────────
     if leg_loc != "None" and n > 0:
         legend_handles = []
         for idx, row in df_active.iterrows():
@@ -540,7 +545,6 @@ def plot_slope_chart(df_active, **kw):
             marker = mk_over.get(mat, MARKER_STYLE.get(mat, "o"))
             ls     = ln_styles.get(mat, "-")
             
-            # Format label: Symbol + Concept + Growth %
             lbl = f"{row['Symbol']}  {mat}  ({row['Growth_Str']})"
             
             handle = mlines.Line2D([], [], color=color, marker=marker,
@@ -549,12 +553,27 @@ def plot_slope_chart(df_active, **kw):
                                    label=lbl)
             legend_handles.append(handle)
 
-        leg = ax.legend(handles=legend_handles, loc=leg_loc, fontsize=fs + 1,
-                        frameon=True, fancybox=True, shadow=True,
-                        edgecolor=sp_c,
-                        facecolor=("#FFFFFF" if bg_st == "Light" else "#2B2B3D"),
-                        labelcolor=txt_c, borderpad=0.8,
-                        handletextpad=0.6)
+        if leg_outside:
+            # Place legend below the plot, spread across multiple columns
+            leg = ax.legend(handles=legend_handles, 
+                            loc='upper center', 
+                            bbox_to_anchor=(0.5, -0.12), 
+                            ncol=leg_ncol,
+                            fontsize=fs - 1, 
+                            frameon=True, fancybox=True, shadow=True,
+                            edgecolor=sp_c,
+                            facecolor=("#FFFFFF" if bg_st == "Light" else "#2B2B3D"),
+                            labelcolor=txt_c, borderpad=0.8,
+                            handletextpad=0.6,
+                            columnspacing=1.0)
+        else:
+            # Original behavior (inside the plot)
+            leg = ax.legend(handles=legend_handles, loc=leg_loc, fontsize=fs + 1,
+                            frameon=True, fancybox=True, shadow=True,
+                            edgecolor=sp_c,
+                            facecolor=("#FFFFFF" if bg_st == "Light" else "#2B2B3D"),
+                            labelcolor=txt_c, borderpad=0.8,
+                            handletextpad=0.6)
         leg.get_frame().set_linewidth(1.2)
 
     if watermark:
@@ -595,7 +614,12 @@ def plot_slope_chart(df_active, **kw):
         for sp_name in ("top", "right"):
             ax.spines[sp_name].set_visible(False)
 
-    fig.tight_layout()
+    # ─── ADJUST LAYOUT FOR OUTSIDE LEGEND ─────────────────────
+    if leg_outside and leg_loc != "None" and n > 0:
+        # Leave 20% space at the bottom for the legend
+        fig.tight_layout(rect=[0, 0.20, 1, 1])
+    else:
+        fig.tight_layout()
 
     if show_hover and HAVE_MPLCURSORS:
         cursor = mplcursors.cursor(ax.lines, hover=True)
@@ -666,7 +690,7 @@ with st.sidebar:
             rk   = row["RowKey"]
             mat  = row["Material"]
             sym  = row["Symbol"]
-            default = (i < 5)  # <--- CHANGE THIS TO True IF YOU WANT ALL ON BY DEFAULT
+            default = (i < 5) 
             with cols[i % n_cols]:
                 cur = st.session_state.get(f"tog_{rk}", default)
                 toggle_states[rk] = st.toggle(
@@ -806,7 +830,6 @@ with st.sidebar:
     # ── 8. Annotation callout ──
     with st.expander("📌  Annotation Callout", expanded=False):
         a_opts  = [None] + list(df["RowKey"])
-        # CHANGED: Default to None so it doesn't show the 2100% box by default
         default_idx = 0 
         ann_rowkey = st.selectbox(
             "Annotate Concept", a_opts,
@@ -817,8 +840,7 @@ with st.sidebar:
             index=default_idx)
 
         if ann_rowkey:
-            st.markdown("**Prefix Symbol**  *(no emoji — renders "
-                        "in all backends)*")
+            st.markdown("**Prefix Symbol**")
             ann_sym_key = st.selectbox(
                 "Symbol",
                 list(ANN_SYMBOLS.keys()), index=0, key="ann_sym")
@@ -855,7 +877,6 @@ with st.sidebar:
 
     # ── 9. Glow / highlight ──
     with st.expander("✨  Glow / Highlight", expanded=False):
-        # CHANGED: Default to False so the highest growth isn't automatically highlighted
         hi_star = st.checkbox(
             f"Highlight {HIGHLIGHT_CONCEPT} (Highest Growth)",
             False)
@@ -889,12 +910,20 @@ with st.sidebar:
             with c2:
                 y_max = st.number_input("Y-max", value=500,
                                         step=10, key="ymax")
-        # CHANGED: Default index from 0 to 1 ("best" instead of "None") to show legend by default
+        
+        st.markdown("**Legend Settings**")
         leg_loc = st.selectbox(
             "Legend Position",
             ["None", "best", "upper right", "upper left",
              "lower left", "lower right", "center"],
-            index=1)
+            index=0) # Default to None so it doesn't conflict with outside legend
+            
+        leg_outside = st.checkbox("Place Legend Below Plot (Outside)", True)
+        if leg_loc != "None" and leg_outside:
+            leg_ncol = st.slider("Legend Columns", 1, 6, 3, 1)
+        else:
+            leg_ncol = 1
+            
         st.markdown("**Spines & Ticks**")
         sp_w   = st.slider("Spine Width",  0.5, 5.0, 1.0, 0.1)
         tk_len = st.slider("Tick Length",   2, 20, 6, 1)
@@ -915,7 +944,7 @@ with st.sidebar:
     show_hover = st.checkbox("Hover Tooltips", True,
                               disabled=not HAVE_MPLCURSORS)
 
-# ─── Active data (RowKey-based, always unique) ───────────────
+# ─── Active data ─────────────────────────────────────────────
 active_keys = [rk for rk, on in toggle_states.items() if on]
 df_active = df[df["RowKey"].isin(active_keys)].copy()
 
@@ -985,6 +1014,7 @@ fig = plot_slope_chart(
     bg_style=bg_st,               marker_size=mk_sz,
     font_size=fs_val,             fig_width=fw_val,
     fig_height=fh_val,            show_hover=show_hover,
+    legend_outside=leg_outside,   legend_ncol=leg_ncol,
 )
 
 # ─── Export ──────────────────────────────────────────────────
