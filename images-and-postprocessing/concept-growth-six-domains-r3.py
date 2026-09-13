@@ -319,9 +319,10 @@ def plot_slope_chart(df_active, **kw):
     y_max     = kw.get("y_max",         None)
     
     # ── LEGEND CONTROLS ──
-    leg_loc   = kw.get("legend_loc",    "None")
-    leg_outside = kw.get("legend_outside", True)  # New default
-    leg_ncol  = kw.get("legend_ncol", 3)          # New default
+    show_legend = kw.get("show_legend", True)
+    leg_outside = kw.get("legend_outside", True)
+    leg_ncol  = kw.get("legend_ncol", 4)
+    leg_loc   = kw.get("legend_loc", "best")
     
     sp_w      = kw.get("spine_width",   1.0)
     tk_len    = kw.get("tick_length",   6)
@@ -536,8 +537,8 @@ def plot_slope_chart(df_active, **kw):
         cbar.outline.set_edgecolor(sp_c)
         cbar.outline.set_linewidth(0.8)
 
-    # ─── LEGEND GENERATION ───────────────────────────────────
-    if leg_loc != "None" and n > 0:
+    # ─── LEGEND GENERATION (Always runs if n > 0) ─────────────
+    if show_legend and n > 0:
         legend_handles = []
         for idx, row in df_active.iterrows():
             mat    = row["Material"]
@@ -554,7 +555,7 @@ def plot_slope_chart(df_active, **kw):
             legend_handles.append(handle)
 
         if leg_outside:
-            # Place legend below the plot, spread across multiple columns
+            # Place legend completely below the plot
             leg = ax.legend(handles=legend_handles, 
                             loc='upper center', 
                             bbox_to_anchor=(0.5, -0.12), 
@@ -567,7 +568,7 @@ def plot_slope_chart(df_active, **kw):
                             handletextpad=0.6,
                             columnspacing=1.0)
         else:
-            # Original behavior (inside the plot)
+            # Place legend inside the plot
             leg = ax.legend(handles=legend_handles, loc=leg_loc, fontsize=fs + 1,
                             frameon=True, fancybox=True, shadow=True,
                             edgecolor=sp_c,
@@ -615,9 +616,9 @@ def plot_slope_chart(df_active, **kw):
             ax.spines[sp_name].set_visible(False)
 
     # ─── ADJUST LAYOUT FOR OUTSIDE LEGEND ─────────────────────
-    if leg_outside and leg_loc != "None" and n > 0:
-        # Leave 20% space at the bottom for the legend
-        fig.tight_layout(rect=[0, 0.20, 1, 1])
+    if leg_outside and show_legend and n > 0:
+        # Leave 22% space at the bottom for the legend
+        fig.tight_layout(rect=[0, 0.22, 1, 1])
     else:
         fig.tight_layout()
 
@@ -912,17 +913,24 @@ with st.sidebar:
                                         step=10, key="ymax")
         
         st.markdown("**Legend Settings**")
-        leg_loc = st.selectbox(
-            "Legend Position",
-            ["None", "best", "upper right", "upper left",
-             "lower left", "lower right", "center"],
-            index=0) # Default to None so it doesn't conflict with outside legend
-            
-        leg_outside = st.checkbox("Place Legend Below Plot (Outside)", True)
-        if leg_loc != "None" and leg_outside:
-            leg_ncol = st.slider("Legend Columns", 1, 6, 3, 1)
+        show_legend = st.checkbox("Show Legend", True)
+        
+        if show_legend:
+            leg_outside = st.checkbox("Place Legend Below Plot (Outside)", True)
+            if leg_outside:
+                leg_ncol = st.slider("Legend Columns", 1, 6, 4, 1)
+                leg_loc = "best" # placeholder, not used
+            else:
+                leg_ncol = 1
+                leg_loc = st.selectbox(
+                    "Legend Position Inside Plot",
+                    ["best", "upper right", "upper left",
+                     "lower left", "lower right", "center"],
+                    index=0)
         else:
+            leg_outside = False
             leg_ncol = 1
+            leg_loc = "best"
             
         st.markdown("**Spines & Ticks**")
         sp_w   = st.slider("Spine Width",  0.5, 5.0, 1.0, 0.1)
@@ -1014,7 +1022,8 @@ fig = plot_slope_chart(
     bg_style=bg_st,               marker_size=mk_sz,
     font_size=fs_val,             fig_width=fw_val,
     fig_height=fh_val,            show_hover=show_hover,
-    legend_outside=leg_outside,   legend_ncol=leg_ncol,
+    show_legend=show_legend,      legend_outside=leg_outside,
+    legend_ncol=leg_ncol,
 )
 
 # ─── Export ──────────────────────────────────────────────────
