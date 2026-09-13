@@ -86,30 +86,22 @@ BG_PRESETS = {
 
 # ═══════════════════════════════════════════════════════════════
 #  DATA LOADING — read all CSVs from concept-growth-datasets/
-#  - Robust directory discovery (script dir → cwd)
-#  - Flexible column name matching
-#  - Duplicate concepts across files kept ONCE (first file wins,
-#    counts are NOT summed)
-#  - Rows where Early, Recent AND Growth are all 0 are excluded
 # ═══════════════════════════════════════════════════════════════
 
 def get_data_dir():
     """Robustly find the concept-growth-datasets directory."""
     dir_name = "concept-growth-datasets"
 
-    # 1. Relative to this script (works for local & Streamlit Cloud)
     if "__file__" in globals():
         base = os.path.dirname(os.path.abspath(__file__))
         p = os.path.join(base, dir_name)
         if os.path.isdir(p):
             return p
 
-    # 2. Current working directory
     p = os.path.join(os.getcwd(), dir_name)
     if os.path.isdir(p):
         return p
 
-    # 3. Fallback (used for error message)
     return dir_name
 
 CSV_DIR = get_data_dir()
@@ -125,18 +117,32 @@ PALETTE_POOL = [
 
 
 def _find_col(cols, keyword):
-    """First column whose name contains keyword (case-insensitive)."""
     for c in cols:
         if keyword.lower() in str(c).lower():
             return c
     return None
 
 
-def load_all_concepts(csv_dir):
-    """Load every CSV, dedupe concepts across files, drop all-zero rows.
+def _file_signature(csv_dir):
+    """Return a tuple of (filename, mtime, size) for every CSV in dir.
 
-    Returns (DataFrame | None, message).
+    Used as part of the cache key so any file change invalidates the
+    cache, even when the loader code is unchanged.
     """
+    if not os.path.isdir(csv_dir):
+        return ()
+    sig = []
+    for fp in sorted(glob.glob(os.path.join(csv_dir, "*.csv"))):
+        try:
+            st_ = os.stat(fp)
+            sig.append((os.path.basename(fp), int(st_.st_mtime), st_.st_size))
+        except OSError:
+            sig.append((os.path.basename(fp), 0, 0))
+    return tuple(sig)
+
+
+def load_all_concepts(csv_dir):
+    """Load every CSV, dedupe concepts across files, drop all-zero rows."""
     if not os.path.isdir(csv_dir):
         return None, (f"Directory '{csv_dir}' not found. "
                       f"Make sure the folder sits next to your app script.")
@@ -149,13 +155,11 @@ def load_all_concepts(csv_dir):
     errors = []
     for csv_path in csv_files:
         try:
-            # utf-8-sig strips the BOM that appears in these CSVs
             d = pd.read_csv(csv_path, encoding="utf-8-sig")
         except Exception as e:
             errors.append(f"{os.path.basename(csv_path)}: {e}")
             continue
 
-        # Drop unnamed index column if present
         d = d.loc[:, ~d.columns.astype(str).str.startswith("Unnamed")]
         d.columns = [str(c).strip() for c in d.columns]
 
@@ -177,7 +181,7 @@ def load_all_concepts(csv_dir):
         sub["Concept"]         = sub["Concept"].astype(str).str.strip()
 
         sub["Domain"] = os.path.splitext(os.path.basename(csv_path))[0]
-        sub["_src_order"] = len(frames)   # preserves file ordering for dedupe
+        sub["_src_order"] = len(frames)
         frames.append(sub)
 
     if not frames:
@@ -186,9 +190,7 @@ def load_all_concepts(csv_dir):
     combined = pd.concat(frames, ignore_index=True)
     total_before = len(combined)
 
-    # ─── Dedupe: same concept across files kept ONCE (no summing) ───
-    # Sort by source-file order so the FIRST file that mentions a
-    # concept wins; keep="first" picks it.
+    # ── Dedupe: same concept across files kept ONCE (first file wins) ──
     combined = (combined
                 .sort_values("_src_order")
                 .drop_duplicates(subset="Concept", keep="first")
@@ -196,7 +198,7 @@ def load_all_concepts(csv_dir):
                 .reset_index(drop=True))
     n_dupes = total_before - len(combined)
 
-    # ─── Exclude concepts where ALL THREE metrics are 0 ───
+    # ── Exclude concepts where ALL THREE metrics are 0 ──
     mask_zero = (
         (combined["Early Count"] == 0)
         & (combined["Recent Count"] == 0)
@@ -204,6 +206,13 @@ def load_all_concepts(csv_dir):
     )
     n_excluded = int(mask_zero.sum())
     combined = combined[~mask_zero].reset_index(drop=True)
+
+    # ── Defensive: guarantee uniqueness of Concept ──
+    # (Should already be true after drop_duplicates, but this is cheap
+    # and protects every downstream widget key.)
+    combined = combined.drop_duplicates(
+        subset="Concept", keep="first"
+    ).reset_index(drop=True)
 
     msg = (f"Loaded {len(csv_files)} CSV file(s) · "
            f"{len(combined)} unique concept(s) · "
@@ -215,11 +224,13 @@ def load_all_concepts(csv_dir):
 
 
 @st.cache_data(show_spinner=False)
-def _cached_load(csv_dir):
+def _cached_load(csv_dir, _signature):
+    """_signature is part of the cache key — any file change busts it."""
     return load_all_concepts(csv_dir)
 
 
-_combined_df, _load_msg = _cached_load(CSV_DIR)
+_sig = _file_signature(CSV_DIR)
+_combined_df, _load_msg = _cached_load(CSV_DIR, _sig)
 
 if _combined_df is None or len(_combined_df) == 0:
     st.error(f"⚠️  Could not load concept data.\n\n{_load_msg}")
@@ -236,7 +247,7 @@ df = pd.DataFrame({
     "Time_1":    _combined_df["Early Count"].astype(float).values,
     "Time_2":    _combined_df["Recent Count"].astype(float).values,
     "Symbol":    [SYMBOLS_POOL[i % len(SYMBOLS_POOL)] for i in range(len(_combined_df))],
-    "Highlight": [i == 0 for i in range(len(_combined_df))],   # top-growth concept
+    "Highlight": [i == 0 for i in range(len(_combined_df))],
     "Domain":    _combined_df["Domain"].astype(str).values,
 })
 df["Growth"]     = _combined_df["Growth Rate (%)"].astype(float).round(2).values
@@ -244,11 +255,12 @@ df["Growth_Str"] = df["Growth"].apply(
     lambda g: f"+{g:.2f}%" if g >= 0 else f"{g:.2f}%"
 )
 
-# ─── UNIQUE ROW KEY ───
-# After cross-file deduplication, concept names are unique, so the
-# concept name alone is a safe widget key. Kept as RowKey for
-# consistency with downstream widget keys.
-df["RowKey"] = df["Material"].astype(str)
+# ─── Guaranteed-unique row identity ───────────────────────────
+# Use a positional counter, NOT the concept name, so widget keys
+# can never collide even if the concept appears twice.
+df = df.reset_index(drop=True)
+df["RowId"]  = df.index.astype(int)                 # 0, 1, 2, …
+df["RowKey"] = df["RowId"].astype(str) + "::" + df["Material"]
 
 # Dynamic palette / marker per concept
 DEFAULT_PALETTE = {m: PALETTE_POOL[i % len(PALETTE_POOL)]
@@ -402,32 +414,30 @@ def plot_slope_chart(df_active, **kw):
         else:
             xc, yc = xp, yv
 
-        # Glow
         if star and shad_alpha > 0:
             ax.plot(xc, yc, color=color, lw=lw + 4,
                     alpha=shad_alpha * 0.5, zorder=zo - 1)
             ax.plot(xc, yc, color=color, lw=lw + 2,
                     alpha=shad_alpha,       zorder=zo - 1)
 
-        # Main line
+        # Use RowKey in label so duplicate concept names in different
+        # domain files still produce distinct legend entries.
+        line_label = row["RowKey"]
         ax.plot(xc, yc, color=color, lw=lw, alpha=al, zorder=zo,
                 linestyle=ls, solid_capstyle="round",
-                dash_capstyle="round", label=mat)
+                dash_capstyle="round", label=line_label)
 
-        # Endpoint markers
         ax.plot(xc[0],  yc[0],  marker=marker, ms=ms, color=color,
                 zorder=zo + 1, markeredgecolor=edge_c, markeredgewidth=1.5)
         ax.plot(xc[-1], yc[-1], marker=marker, ms=ms, color=color,
                 zorder=zo + 1, markeredgecolor=edge_c, markeredgewidth=1.5)
 
-        # Arrow at end
         if show_arrow:
             ax.annotate("", xy=(xp[1] + 0.06, yv[1]),
                         xytext=(xp[1] - 0.08, yv[1]),
                         arrowprops=dict(arrowstyle="->", color=color,
                                         lw=lw * 0.7), zorder=zo + 2)
 
-        # Labels
         stroke = [pe.withStroke(linewidth=2.5, foreground=edge_c)]
         fl     = fs - 1
         sym    = row["Symbol"] if show_sym else ""
@@ -462,7 +472,7 @@ def plot_slope_chart(df_active, **kw):
                     fontweight="bold" if star else "normal",
                     path_effects=stroke, bbox=bbox_p)
 
-    # ─── ANNOTATION (keyed by unique RowKey) ─────────────────
+    # ─── ANNOTATION ──────────────────────────────────────────
     if ann_rowkey and ann_rowkey in df_active["RowKey"].values:
         sr  = df_active[df_active["RowKey"] == ann_rowkey].iloc[0]
         mx  = 1.5
@@ -506,7 +516,6 @@ def plot_slope_chart(df_active, **kw):
             zorder=25,
         )
 
-    # ─── Axes setup ──────────────────────────────────────────
     ax.set_xticks([1, 2])
     ax.set_xticklabels(["Early Period", "Recent Period"],
                        fontsize=fs + 2, fontweight="bold", color=txt_c)
@@ -528,7 +537,6 @@ def plot_slope_chart(df_active, **kw):
                    length=tk_len, width=tk_w)
     ax.set_xlim(0.5, 2.5)
 
-    # ─── Three-color gradient background ─────────────────────
     if tri_bg:
         clist = [mcolors.to_rgba(bg1), mcolors.to_rgba(bg2),
                  mcolors.to_rgba(bg3)]
@@ -544,7 +552,6 @@ def plot_slope_chart(df_active, **kw):
         ax.imshow(grad, aspect="auto", cmap=cm_bg, alpha=bg_alpha,
                   extent=[xl, xr, yb, yt], origin="lower", zorder=0)
 
-    # ─── Colorbar ────────────────────────────────────────────
     if use_cmap and show_cbar and cmap_obj and norm_obj:
         sm = cm.ScalarMappable(cmap=cmap_obj, norm=norm_obj)
         sm.set_array([])
@@ -554,17 +561,21 @@ def plot_slope_chart(df_active, **kw):
         cbar.outline.set_edgecolor(sp_c)
         cbar.outline.set_linewidth(0.8)
 
-    # ─── Legend ──────────────────────────────────────────────
     handles, labels = ax.get_legend_handles_labels()
     new_lab = []
     for lab in labels:
-        m_row = df[df["Material"] == lab]
-        sym = m_row["Symbol"].values[0] if len(m_row) else ""
-        if show_gpct:
-            g = m_row["Growth_Str"].values[0] if len(m_row) else ""
-            new_lab.append(f"  {sym}  {lab}  ({g})")
+        # lab is RowKey; recover material + symbol
+        m_row = df[df["RowKey"] == lab]
+        if len(m_row):
+            mat_display = m_row["Material"].values[0]
+            sym = m_row["Symbol"].values[0]
+            g   = m_row["Growth_Str"].values[0]
         else:
-            new_lab.append(f"  {sym}  {lab}")
+            mat_display, sym, g = lab, "", ""
+        if show_gpct:
+            new_lab.append(f"  {sym}  {mat_display}  ({g})")
+        else:
+            new_lab.append(f"  {sym}  {mat_display}")
     if handles and leg_loc != "None":
         leg = ax.legend(handles, new_lab, loc=leg_loc, fontsize=fs + 1,
                         frameon=True, fancybox=True, shadow=True,
@@ -575,12 +586,10 @@ def plot_slope_chart(df_active, **kw):
                         handletextpad=0.6)
         leg.get_frame().set_linewidth(1.2)
 
-    # ─── Watermark ───────────────────────────────────────────
     if watermark:
         fig.text(0.99, 0.01, watermark, fontsize=8, color=txt_c,
                  alpha=0.3, ha="right", va="bottom", style="italic")
 
-    # ─── Axes box ────────────────────────────────────────────
     ls_map = {"solid": "-", "dashed": "--",
               "dotted": ":", "dashdot": "-."}
     bls = ls_map.get(box_ls, "-")
@@ -617,7 +626,6 @@ def plot_slope_chart(df_active, **kw):
 
     fig.tight_layout()
 
-    # ─── Hover tooltips ──────────────────────────────────────
     if show_hover and HAVE_MPLCURSORS:
         cursor = mplcursors.cursor(ax.lines, hover=True)
         cursor.connect("add", lambda sel: sel.annotation.set_text(
@@ -661,12 +669,10 @@ with st.sidebar:
             "Filter by Domain file", _domains, default=_domains,
             key="domain_filter")
 
-        # Visible slice (deterministic order — sorted by growth in df)
         vis_df = df[df["Domain"].isin(sel_domains)].reset_index(drop=True)
         visible_keys  = vis_df["RowKey"].tolist()
         _n_visible    = len(vis_df)
 
-        # Quick-select buttons (unique RowKey-based session keys)
         cc1, cc2, cc3 = st.columns(3)
         with cc1:
             if st.button("✅ Select All", use_container_width=True):
@@ -686,12 +692,13 @@ with st.sidebar:
         n_cols = 3
         cols = st.columns(n_cols)
         for i, row in vis_df.iterrows():
-            rk   = row["RowKey"]
+            rk   = row["RowKey"]      # "0::nmc811", "1::fec", … — globally unique
             mat  = row["Material"]
             sym  = row["Symbol"]
-            default = (i < 5)  # default-select top 5
+            default = (i < 5)
             with cols[i % n_cols]:
                 cur = st.session_state.get(f"tog_{rk}", default)
+                # Key is RowKey (index-prefixed) → never collides
                 toggle_states[rk] = st.toggle(
                     f"{sym} {mat}", cur, key=f"tog_{rk}")
 
@@ -719,9 +726,7 @@ with st.sidebar:
         line_w    = st.slider("Spline Thickness (line width)",
                               0.5, 14.0, 3.0, 0.5)
         curv      = st.slider("Curvature / Spline Bend",
-                              -1.0, 1.0, 0.0, 0.05,
-                              help="0 = straight · + = bulge up · "
-                                   "− = bulge down")
+                              -1.0, 1.0, 0.0, 0.05)
         line_alph = st.slider("Line Opacity", 0.1, 1.0, 0.85, 0.05)
         show_arrow= st.checkbox("Arrow at Line End", False)
 
@@ -762,6 +767,7 @@ with st.sidebar:
             if i % 3 == 0:
                 cols = st.columns(3)
             with cols[i % 3]:
+                # RowKey-based key → globally unique
                 cc[mat] = st.color_picker(
                     mat[:20], DEFAULT_PALETTE.get(mat, "#888888"),
                     key=f"clr_{rk}")
@@ -836,8 +842,8 @@ with st.sidebar:
             "Annotate Concept", a_opts,
             format_func=lambda x: (
                 "None" if x is None
-                else f"{x.split('::', 1)[1]}" if "::" in x
-                else str(x)),
+                else (x.split("::", 1)[1]
+                      if "::" in x else str(x))),
             index=default_idx)
 
         if ann_rowkey:
@@ -937,7 +943,7 @@ with st.sidebar:
     show_hover = st.checkbox("Hover Tooltips", True,
                               disabled=not HAVE_MPLCURSORS)
 
-# ─── Active data (unique RowKeys) ────────────────────────────
+# ─── Active data (RowKey-based, always unique) ───────────────
 active_keys = [rk for rk, on in toggle_states.items() if on]
 df_active = df[df["RowKey"].isin(active_keys)].copy()
 
