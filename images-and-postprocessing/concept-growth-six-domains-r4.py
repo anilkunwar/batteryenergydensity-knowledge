@@ -990,7 +990,7 @@ with st.sidebar:
         show_legend = st.checkbox("Show Matplotlib Legend (Inside/Outside)", not web_legend)
 
         if web_legend:
-            web_leg_font_size = st.slider("Web Legend Font Size", 8, 24, 14, 1, key="wfs")
+            web_leg_font_size = st.slider("Web Legend Font Size", 8, 55, 35, 1, key="wfs")
         else:
             web_leg_font_size = 14
 
