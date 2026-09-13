@@ -323,6 +323,7 @@ def plot_slope_chart(df_active, **kw):
     leg_outside = kw.get("legend_outside", True)
     leg_ncol  = kw.get("legend_ncol", 4)
     leg_loc   = kw.get("legend_loc", "best")
+    leg_font_size = kw.get("legend_font_size", 10) # NEW
     
     sp_w      = kw.get("spine_width",   1.0)
     tk_len    = kw.get("tick_length",   6)
@@ -546,7 +547,8 @@ def plot_slope_chart(df_active, **kw):
             marker = mk_over.get(mat, MARKER_STYLE.get(mat, "o"))
             ls     = ln_styles.get(mat, "-")
             
-            lbl = f"{row['Symbol']}  {mat}  ({row['Growth_Str']})"
+            # MODIFIED: Removed the growth numerics from the label
+            lbl = f"{row['Symbol']}  {mat}"
             
             handle = mlines.Line2D([], [], color=color, marker=marker,
                                    linestyle=ls, markersize=8,
@@ -560,7 +562,7 @@ def plot_slope_chart(df_active, **kw):
                             loc='upper center', 
                             bbox_to_anchor=(0.5, -0.12), 
                             ncol=leg_ncol,
-                            fontsize=fs - 1, 
+                            fontsize=leg_font_size, # MODIFIED: Use custom legend font size
                             frameon=True, fancybox=True, shadow=True,
                             edgecolor=sp_c,
                             facecolor=("#FFFFFF" if bg_st == "Light" else "#2B2B3D"),
@@ -569,7 +571,8 @@ def plot_slope_chart(df_active, **kw):
                             columnspacing=1.0)
         else:
             # Place legend inside the plot
-            leg = ax.legend(handles=legend_handles, loc=leg_loc, fontsize=fs + 1,
+            leg = ax.legend(handles=legend_handles, loc=leg_loc, 
+                            fontsize=leg_font_size, # MODIFIED: Use custom legend font size
                             frameon=True, fancybox=True, shadow=True,
                             edgecolor=sp_c,
                             facecolor=("#FFFFFF" if bg_st == "Light" else "#2B2B3D"),
@@ -917,6 +920,8 @@ with st.sidebar:
         
         if show_legend:
             leg_outside = st.checkbox("Place Legend Below Plot (Outside)", True)
+            leg_font_size = st.slider("Legend Font Size", 6, 24, 10, 1) # NEW
+            
             if leg_outside:
                 leg_ncol = st.slider("Legend Columns", 1, 6, 4, 1)
                 leg_loc = "best" # placeholder, not used
@@ -931,6 +936,7 @@ with st.sidebar:
             leg_outside = False
             leg_ncol = 1
             leg_loc = "best"
+            leg_font_size = 10 # default fallback
             
         st.markdown("**Spines & Ticks**")
         sp_w   = st.slider("Spine Width",  0.5, 5.0, 1.0, 0.1)
@@ -1023,7 +1029,7 @@ fig = plot_slope_chart(
     font_size=fs_val,             fig_width=fw_val,
     fig_height=fh_val,            show_hover=show_hover,
     show_legend=show_legend,      legend_outside=leg_outside,
-    legend_ncol=leg_ncol,
+    legend_ncol=leg_ncol,         legend_font_size=leg_font_size,
 )
 
 # ─── Export ──────────────────────────────────────────────────
