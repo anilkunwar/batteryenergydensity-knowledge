@@ -257,7 +257,8 @@ def make_curved_line(x1, y1, x2, y2, curvature=0.0, n_pts=80):
     return x, y
 
 # ═══════════════════════════════════════════════════════════════
-#  WEB LEGEND RENDERER (HTML/CSS)
+#  WEB LEGEND RENDERER (HTML/CSS) — with vertical centering
+#  and proper ellipsis truncation fixes
 # ═══════════════════════════════════════════════════════════════
 def generate_web_legend(df_active, custom_colors, mk_over, ln_styles, theme="light"):
     if len(df_active) == 0:
@@ -290,13 +291,15 @@ def generate_web_legend(df_active, custom_colors, mk_over, ln_styles, theme="lig
         ls = ln_styles.get(mat, "-")
         css_ls = {"-": "solid", "--": "dashed", "-.": "dashdot", ":": "dotted"}.get(ls, "solid")
 
+        # FIX 1: 'top: 50%' + 'transform: translate(-50%, -50%)' → perfect vertical centering of the marker glyph on the line.
+        # FIX 2: 'min-width: 0' on the text span → allows flex item to shrink below content size, so text-overflow: ellipsis actually triggers.
         html += f"""
         <div style="display: flex; align-items: center; gap: 10px;">
             <div style="position: relative; width: 40px; height: 16px; display: flex; align-items: center; flex-shrink: 0;">
                 <div style="width: 100%; height: 0; border-top: 3px {css_ls} {color};"></div>
-                <span style="position: absolute; left: 50%; transform: translateX(-50%); color: {color}; font-size: 16px; background: {bg}; padding: 0 2px; line-height: 1;">{marker}</span>
+                <span style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: {color}; font-size: 16px; background: {bg}; padding: 0 2px; line-height: 1;">{marker}</span>
             </div>
-            <span style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{mat}</span>
+            <span style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;">{mat}</span>
         </div>
         """
     html += "</div>"
@@ -587,7 +590,7 @@ def plot_slope_chart(df_active, **kw):
         cbar.outline.set_linewidth(0.8)
 
     # ═══════════════════════════════════════════════════════════
-    #  LEGEND GENERATION — fixed to avoid clipping below the plot
+    #  LEGEND GENERATION — figure-level, dynamic bottom margin
     # ═══════════════════════════════════════════════════════════
     if show_legend and n > 0:
         legend_handles = []
