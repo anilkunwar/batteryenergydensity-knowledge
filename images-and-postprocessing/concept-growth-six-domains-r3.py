@@ -257,12 +257,7 @@ def make_curved_line(x1, y1, x2, y2, curvature=0.0, n_pts=80):
     return x, y
 
 # ═══════════════════════════════════════════════════════════════
-#  WEB LEGEND RENDERER (HTML/CSS)
-#  Ultimate robust fix:
-#    - min-width:0 on the OUTER flex container (CSS Grid gotcha)
-#    - line drawn with absolute positioning + margin-top:-1.5px
-#    - z-index layering so line "breaks" around the symbol
-#    - extra horizontal padding masks anti-aliasing bleed
+#  WEB LEGEND RENDERER (HTML/CSS) — Ultimate Robust Fix
 # ═══════════════════════════════════════════════════════════════
 def generate_web_legend(df_active, custom_colors, mk_over, ln_styles, theme="light"):
     if len(df_active) == 0:
@@ -295,15 +290,6 @@ def generate_web_legend(df_active, custom_colors, mk_over, ln_styles, theme="lig
         ls = ln_styles.get(mat, "-")
         css_ls = {"-": "solid", "--": "dashed", "-.": "dashdot", ":": "dotted"}.get(ls, "solid")
 
-        # FIX 1: `min-width: 0` on the OUTER flex container overrides the
-        #        CSS Grid default and lets the column shrink, so the inner
-        #        text-overflow: ellipsis actually fires on long names.
-        # FIX 2: Line uses absolute positioning + margin-top:-1.5px (half the
-        #        3px border), giving pixel-perfect vertical centering without
-        #        `transform: translateY` (which blurs on some GPUs).
-        # FIX 3: z-index layering — line z:0, symbol z:1 — makes the line
-        #        cleanly break around the marker.
-        # FIX 4: `padding: 0 5px` masks anti-aliasing bleed at symbol edges.
         html += f"""
         <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
             <div style="position: relative; width: 40px; height: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
