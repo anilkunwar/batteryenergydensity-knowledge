@@ -257,6 +257,52 @@ def make_curved_line(x1, y1, x2, y2, curvature=0.0, n_pts=80):
     return x, y
 
 # ═══════════════════════════════════════════════════════════════
+#  WEB LEGEND RENDERER (HTML/CSS)
+# ═══════════════════════════════════════════════════════════════
+def generate_web_legend(df_active, custom_colors, mk_over, ln_styles, theme="light"):
+    if len(df_active) == 0:
+        return ""
+    
+    bg = "#ffffff" if theme == "light" else "#2b2b3d"
+    border = "#e0e0e0" if theme == "light" else "#444466"
+    text = "#333333" if theme == "light" else "#e0e0e0"
+
+    html = f"""
+    <div style="
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+        padding: 16px;
+        background-color: {bg};
+        border: 1px solid {border};
+        border-radius: 10px;
+        margin-top: 15px;
+        font-family: sans-serif;
+        font-size: 14px;
+        color: {text};
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    ">
+    """
+    for _, row in df_active.iterrows():
+        mat = row["Material"]
+        color = custom_colors.get(mat, "#333333")
+        marker = row["Symbol"]
+        ls = ln_styles.get(mat, "-")
+        css_ls = {"-": "solid", "--": "dashed", "-.": "dashdot", ":": "dotted"}.get(ls, "solid")
+
+        html += f"""
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="position: relative; width: 40px; height: 16px; display: flex; align-items: center; flex-shrink: 0;">
+                <div style="width: 100%; height: 0; border-top: 3px {css_ls} {color};"></div>
+                <span style="position: absolute; left: 50%; transform: translateX(-50%); color: {color}; font-size: 16px; background: {bg}; padding: 0 2px; line-height: 1;">{marker}</span>
+            </div>
+            <span style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{mat}</span>
+        </div>
+        """
+    html += "</div>"
+    return html
+
+# ═══════════════════════════════════════════════════════════════
 #  MAIN PLOT FUNCTION
 # ═══════════════════════════════════════════════════════════════
 def plot_slope_chart(df_active, **kw):
@@ -323,7 +369,7 @@ def plot_slope_chart(df_active, **kw):
     leg_outside = kw.get("legend_outside", True)
     leg_ncol  = kw.get("legend_ncol", 4)
     leg_loc   = kw.get("legend_loc", "best")
-    leg_font_size = kw.get("legend_font_size", 10) # NEW
+    leg_font_size = kw.get("legend_font_size", 10)
     
     sp_w      = kw.get("spine_width",   1.0)
     tk_len    = kw.get("tick_length",   6)
@@ -538,7 +584,7 @@ def plot_slope_chart(df_active, **kw):
         cbar.outline.set_edgecolor(sp_c)
         cbar.outline.set_linewidth(0.8)
 
-    # ─── LEGEND GENERATION (Always runs if n > 0) ─────────────
+    # ─── MATPLOTLIB LEGEND GENERATION (Fallback) ─────────────
     if show_legend and n > 0:
         legend_handles = []
         for idx, row in df_active.iterrows():
@@ -547,8 +593,8 @@ def plot_slope_chart(df_active, **kw):
             marker = mk_over.get(mat, MARKER_STYLE.get(mat, "o"))
             ls     = ln_styles.get(mat, "-")
             
-            # MODIFIED: Removed the growth numerics from the label
-            lbl = f"{row['Symbol']}  {mat}"
+            # FIX: Removed the text symbol prefix to avoid double symbols
+            lbl = f"{mat}"
             
             handle = mlines.Line2D([], [], color=color, marker=marker,
                                    linestyle=ls, markersize=8,
@@ -557,12 +603,11 @@ def plot_slope_chart(df_active, **kw):
             legend_handles.append(handle)
 
         if leg_outside:
-            # Place legend completely below the plot
             leg = ax.legend(handles=legend_handles, 
                             loc='upper center', 
                             bbox_to_anchor=(0.5, -0.12), 
                             ncol=leg_ncol,
-                            fontsize=leg_font_size, # MODIFIED: Use custom legend font size
+                            fontsize=leg_font_size,
                             frameon=True, fancybox=True, shadow=True,
                             edgecolor=sp_c,
                             facecolor=("#FFFFFF" if bg_st == "Light" else "#2B2B3D"),
@@ -570,9 +615,8 @@ def plot_slope_chart(df_active, **kw):
                             handletextpad=0.6,
                             columnspacing=1.0)
         else:
-            # Place legend inside the plot
             leg = ax.legend(handles=legend_handles, loc=leg_loc, 
-                            fontsize=leg_font_size, # MODIFIED: Use custom legend font size
+                            fontsize=leg_font_size,
                             frameon=True, fancybox=True, shadow=True,
                             edgecolor=sp_c,
                             facecolor=("#FFFFFF" if bg_st == "Light" else "#2B2B3D"),
@@ -620,7 +664,6 @@ def plot_slope_chart(df_active, **kw):
 
     # ─── ADJUST LAYOUT FOR OUTSIDE LEGEND ─────────────────────
     if leg_outside and show_legend and n > 0:
-        # Leave 22% space at the bottom for the legend
         fig.tight_layout(rect=[0, 0.22, 1, 1])
     else:
         fig.tight_layout()
@@ -916,15 +959,16 @@ with st.sidebar:
                                         step=10, key="ymax")
         
         st.markdown("**Legend Settings**")
-        show_legend = st.checkbox("Show Legend", True)
+        web_legend = st.checkbox("Render Legend as Web Content (Below Plot)", True)
+        show_legend = st.checkbox("Show Matplotlib Legend (Inside/Outside)", not web_legend)
         
         if show_legend:
             leg_outside = st.checkbox("Place Legend Below Plot (Outside)", True)
-            leg_font_size = st.slider("Legend Font Size", 6, 24, 10, 1) # NEW
+            leg_font_size = st.slider("Legend Font Size", 6, 24, 10, 1)
             
             if leg_outside:
                 leg_ncol = st.slider("Legend Columns", 1, 6, 4, 1)
-                leg_loc = "best" # placeholder, not used
+                leg_loc = "best"
             else:
                 leg_ncol = 1
                 leg_loc = st.selectbox(
@@ -936,7 +980,7 @@ with st.sidebar:
             leg_outside = False
             leg_ncol = 1
             leg_loc = "best"
-            leg_font_size = 10 # default fallback
+            leg_font_size = 10
             
         st.markdown("**Spines & Ticks**")
         sp_w   = st.slider("Spine Width",  0.5, 5.0, 1.0, 0.1)
@@ -1031,6 +1075,15 @@ fig = plot_slope_chart(
     show_legend=show_legend,      legend_outside=leg_outside,
     legend_ncol=leg_ncol,         legend_font_size=leg_font_size,
 )
+
+# ─── RENDER WEB LEGEND (If enabled) ──────────────────────────
+if web_legend and fig is not None:
+    web_legend_html = generate_web_legend(
+        df_active, custom_colors, mk_over_dict, ln_styles_dict, 
+        theme=bg_st.lower()
+    )
+    if web_legend_html:
+        st.markdown(web_legend_html, unsafe_allow_html=True)
 
 # ─── Export ──────────────────────────────────────────────────
 if fig is not None:
