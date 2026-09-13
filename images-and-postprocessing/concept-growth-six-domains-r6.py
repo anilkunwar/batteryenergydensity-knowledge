@@ -1,14 +1,3 @@
-Based on the code provided, the functionality to edit the X-axis labels (specifically the "Tick Labels") is already partially implemented in the **Axes & Grid** section of the sidebar.
-
-To fully satisfy your request to allow **User-Defined Labels** and **Empty Space** (hiding the labels), I have updated the code below. I made the following specific improvements:
-
-1.  **Enhanced Sidebar Controls**: I added `help` text to the X-axis label inputs to explicitly inform the user that they can leave the field empty to create "Empty Space".
-2.  **Clear Labeling**: I updated the labels to "X-Axis Left Label" and "X-Axis Right Label" for better clarity.
-3.  **Default Values**: Confirmed that the defaults remain "Early Period" and "Recent Period" as requested.
-
-Here is the complete, runnable Python script.
-
-```python
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -1176,4 +1165,4 @@ st.caption(
     f"All-zero concepts excluded  ·  "
     f"Available colormaps: **{len(ALL_CMAPS)}**  ·  "
     "Built with Streamlit & Matplotlib")
-```
+
