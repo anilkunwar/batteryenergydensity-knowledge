@@ -258,11 +258,12 @@ def make_curved_line(x1, y1, x2, y2, curvature=0.0, n_pts=80):
 
 # ═══════════════════════════════════════════════════════════════
 #  WEB LEGEND RENDERER (HTML/CSS)
-#  Ultimate robust fix:
-#    - min-width:0 on the OUTER flex container (CSS Grid gotcha)
-#    - line drawn with absolute positioning + margin-top:-1.5px
-#    - z-index layering so line "breaks" around the symbol
-#    - extra horizontal padding masks anti-aliasing bleed
+#
+#  CRITICAL FIX: The HTML string is built WITHOUT any leading
+#  whitespace on each line. Streamlit's Markdown parser treats
+#  any line indented by 4+ spaces as a code block, which is why
+#  the legend was rendering as literal text. We concatenate
+#  single-line strings instead of using indented triple-quotes.
 # ═══════════════════════════════════════════════════════════════
 def generate_web_legend(df_active, custom_colors, mk_over, ln_styles, theme="light"):
     if len(df_active) == 0:
@@ -272,22 +273,8 @@ def generate_web_legend(df_active, custom_colors, mk_over, ln_styles, theme="lig
     border = "#e0e0e0" if theme == "light" else "#444466"
     text = "#333333" if theme == "light" else "#e0e0e0"
 
-    html = f"""
-    <div style="
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 12px;
-        padding: 16px;
-        background-color: {bg};
-        border: 1px solid {border};
-        border-radius: 10px;
-        margin-top: 15px;
-        font-family: sans-serif;
-        font-size: 14px;
-        color: {text};
-        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-    ">
-    """
+    # Build each legend item as a single, whitespace-trimmed line.
+    items_html = ""
     for _, row in df_active.iterrows():
         mat = row["Material"]
         color = custom_colors.get(mat, "#333333")
@@ -295,25 +282,31 @@ def generate_web_legend(df_active, custom_colors, mk_over, ln_styles, theme="lig
         ls = ln_styles.get(mat, "-")
         css_ls = {"-": "solid", "--": "dashed", "-.": "dashdot", ":": "dotted"}.get(ls, "solid")
 
-        # FIX 1: `min-width: 0` on the OUTER flex container overrides the
-        #        CSS Grid default and lets the column shrink, so the inner
-        #        text-overflow: ellipsis actually fires on long names.
-        # FIX 2: Line uses absolute positioning + margin-top:-1.5px (half the
-        #        3px border), giving pixel-perfect vertical centering without
-        #        `transform: translateY` (which blurs on some GPUs).
-        # FIX 3: z-index layering — line z:0, symbol z:1 — makes the line
-        #        cleanly break around the marker.
-        # FIX 4: `padding: 0 5px` masks anti-aliasing bleed at symbol edges.
-        html += f"""
-        <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-            <div style="position: relative; width: 40px; height: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                <div style="position: absolute; left: 0; right: 0; top: 50%; margin-top: -1.5px; border-top: 3px {css_ls} {color}; z-index: 0;"></div>
-                <span style="position: relative; z-index: 1; color: {color}; font-size: 16px; background: {bg}; padding: 0 5px; line-height: 1; display: flex; align-items: center; justify-content: center;">{marker}</span>
-            </div>
-            <span style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;">{mat}</span>
-        </div>
-        """
-    html += "</div>"
+        items_html += (
+            '<div style="display:flex;align-items:center;gap:10px;min-width:0;">'
+            '<div style="position:relative;width:40px;height:16px;display:flex;'
+            'align-items:center;justify-content:center;flex-shrink:0;">'
+            f'<div style="position:absolute;left:0;right:0;top:50%;'
+            f'margin-top:-1.5px;border-top:3px {css_ls} {color};z-index:0;"></div>'
+            f'<span style="position:relative;z-index:1;color:{color};font-size:16px;'
+            f'background:{bg};padding:0 5px;line-height:1;display:flex;'
+            f'align-items:center;justify-content:center;">{marker}</span>'
+            '</div>'
+            '<span style="font-weight:500;white-space:nowrap;overflow:hidden;'
+            'text-overflow:ellipsis;min-width:0;">' + mat + '</span>'
+            '</div>'
+        )
+
+    html = (
+        '<div style="display:grid;'
+        'grid-template-columns:repeat(auto-fill,minmax(200px,1fr));'
+        f'gap:12px;padding:16px;background-color:{bg};'
+        f'border:1px solid {border};border-radius:10px;margin-top:15px;'
+        f'font-family:sans-serif;font-size:14px;color:{text};'
+        'box-shadow:0 2px 6px rgba(0,0,0,0.05);">'
+        + items_html +
+        '</div>'
+    )
     return html
 
 # ═══════════════════════════════════════════════════════════════
@@ -459,11 +452,9 @@ def plot_slope_chart(df_active, **kw):
             ax.plot(xc, yc, color=color, lw=lw + 2,
                     alpha=shad_alpha,       zorder=zo - 1)
 
-        # ── Plot line: use `label=mat` (clean name) and stash RowKey for hover ──
         ax.plot(xc, yc, color=color, lw=lw, alpha=al, zorder=zo,
                 linestyle=ls, solid_capstyle="round",
                 dash_capstyle="round", label=mat)
-        # Attach RowKey to the artist for mplcursors hover tooltip
         ax.lines[-1]._rowkey = row["RowKey"]
 
         ax.plot(xc[0],  yc[0],  marker=marker, ms=ms, color=color,
@@ -612,7 +603,6 @@ def plot_slope_chart(df_active, **kw):
             ls     = ln_styles.get(mat, "-")
             star   = bool(row["Highlight"]) and hi_star
 
-            # Match the on-plot marker/line scale
             handle_ms = 8 * (1.4 if star else 1.0)
             handle_lw = line_w * (1.8 if star else 1.0)
 
@@ -626,22 +616,18 @@ def plot_slope_chart(df_active, **kw):
             )
             legend_handles.append(handle)
 
-        # Cap the number of columns to the number of handles
         eff_ncol = max(1, min(int(leg_ncol), len(legend_handles)))
 
         if leg_outside:
-            # ── Figure-level legend, figure-fraction coordinates ──
             n_rows = int(np.ceil(len(legend_handles) / eff_ncol))
-            # Row height in inches (empirical — matches matplotlib's font metrics)
             row_h_in = leg_font_size / 72.0 * 1.6
-            legend_h_in = n_rows * row_h_in + 0.55  # + padding/frame
-            # Reserve at least 4% extra, cap at 45% of the figure
+            legend_h_in = n_rows * row_h_in + 0.55
             bottom_frac = min(0.45, legend_h_in / fh_val + 0.04)
 
             leg = fig.legend(
                 handles=legend_handles,
                 loc='lower center',
-                bbox_to_anchor=(0.5, 0.02),      # figure-fraction!
+                bbox_to_anchor=(0.5, 0.02),
                 ncol=eff_ncol,
                 fontsize=leg_font_size,
                 frameon=True, fancybox=True, shadow=True,
@@ -652,7 +638,6 @@ def plot_slope_chart(df_active, **kw):
             )
             leg.get_frame().set_linewidth(1.2)
 
-            # Reserve the bottom strip we just measured
             fig.subplots_adjust(
                 bottom=bottom_frac,
                 top=0.92,
@@ -660,7 +645,6 @@ def plot_slope_chart(df_active, **kw):
                 right=0.94,
             )
         else:
-            # ── In-axes legend (inside the plot) ──
             leg = ax.legend(
                 handles=legend_handles, loc=leg_loc,
                 fontsize=leg_font_size,
@@ -714,7 +698,7 @@ def plot_slope_chart(df_active, **kw):
         for sp_name in ("top", "right"):
             ax.spines[sp_name].set_visible(False)
 
-    # ─── Hover tooltips (uses clean label, RowKey stashed on artist) ───
+    # ─── Hover tooltips ──────────────────────────────────────
     if show_hover and HAVE_MPLCURSORS:
         cursor = mplcursors.cursor(ax.lines, hover=True)
         cursor.connect("add", lambda sel: sel.annotation.set_text(
@@ -752,7 +736,6 @@ st.caption("ℹ️  " + _load_msg)
 with st.sidebar:
     st.header("🎛️  Controls")
 
-    # ── 1. Domain filter + concept toggles ──
     with st.expander("📌 Concept Toggles", expanded=True):
         sel_domains = st.multiselect(
             "Filter by Domain file", _domains, default=_domains,
@@ -795,7 +778,6 @@ with st.sidebar:
                    f"Top growth: {HIGHLIGHT_CONCEPT} "
                    f"({df.iloc[0]['Growth_Str']}).")
 
-    # ── 2. Label controls ──
     with st.expander("🏷️  Label Controls", expanded=True):
         show_left  = st.checkbox("Left Labels  (name + value)", True)
         show_right = st.checkbox("Right Labels (value + growth)", True)
@@ -809,7 +791,6 @@ with st.sidebar:
         label_bg   = st.checkbox("Label Background Boxes", False)
         conn_lines = st.checkbox("Connector Dots → Labels", False)
 
-    # ── 3. Line / spline style ──
     with st.expander("✏️  Line & Spline Style", expanded=True):
         line_w    = st.slider("Spline Thickness (line width)",
                               0.5, 14.0, 3.0, 0.5)
@@ -818,7 +799,6 @@ with st.sidebar:
         line_alph = st.slider("Line Opacity", 0.1, 1.0, 0.85, 0.05)
         show_arrow= st.checkbox("Arrow at Line End", False)
 
-    # ── 4. Colormap mode ──
     with st.expander("🌈  Colormap Mode  (50+ maps)", expanded=False):
         use_cmap    = st.checkbox("Color Lines by Growth Rate", False)
         cmap_search = st.text_input("Filter colormaps…", "", key="cms")
@@ -841,7 +821,6 @@ with st.sidebar:
                 f"{len(ALL_CMAPS)} total maps")
         show_cbar = st.checkbox("Show Colorbar", True)
 
-    # ── 5. Per-concept styling ──
     custom_colors  = DEFAULT_PALETTE.copy()
     ln_styles_dict = {m: "-" for m in df["Material"].unique()}
     mk_over_dict   = MARKER_STYLE.copy()
@@ -888,7 +867,6 @@ with st.sidebar:
                     mat[:20], mk_opts, index=di, key=f"mk_{rk}")
         mk_over_dict.update(mo)
 
-    # ── 6. Three-color gradient background ──
     with st.expander("🌅  Three-Color Gradient / Shade", expanded=False):
         tri_bg = st.checkbox("Enable Gradient Background", False)
         bg_pre = st.selectbox("Preset", list(BG_PRESETS.keys()), index=0)
@@ -906,7 +884,6 @@ with st.sidebar:
                              "Horizontal (Left→Right)"],
                             horizontal=True)
 
-    # ── 7. Axes box / border ──
     with st.expander("📦  Axes Box / Border", expanded=False):
         box_on  = st.checkbox("Show Axes Box", True)
         box_col = st.color_picker("Border Color", "#888888", key="bxcol")
@@ -921,7 +898,6 @@ with st.sidebar:
         box_fill_al  = st.slider("Fill Tint Opacity",
                                  0.0, 0.3, 0.05, 0.01)
 
-    # ── 8. Annotation callout ──
     with st.expander("📌  Annotation Callout", expanded=False):
         a_opts  = [None] + list(df["RowKey"])
         default_idx = 0
@@ -969,14 +945,12 @@ with st.sidebar:
             ann_offset     = 0.35
             ann_font_extra = 2
 
-    # ── 9. Glow / highlight ──
     with st.expander("✨  Glow / Highlight", expanded=False):
         hi_star = st.checkbox(
             f"Highlight {HIGHLIGHT_CONCEPT} (Highest Growth)",
             False)
         shad_alpha = st.slider("Glow Intensity", 0.0, 1.0, 0.25, 0.05)
 
-    # ── 10. Titles & text ──
     with st.expander("📝  Titles & Text", expanded=False):
         title_t = st.text_input(
             "Title",
@@ -988,7 +962,6 @@ with st.sidebar:
         yl_t    = st.text_input("Y-Axis Label", "Publication Occurrences")
         wm_t    = st.text_input("Watermark", "")
 
-    # ── 11. Axes & grid ──
     with st.expander("⚙️  Axes & Grid", expanded=False):
         log_sc    = st.checkbox("Log Scale (Y)", False)
         show_grid = st.checkbox("Show Grid",    True)
@@ -1034,7 +1007,6 @@ with st.sidebar:
         tk_len = st.slider("Tick Length",   2, 20, 6, 1)
         tk_w   = st.slider("Tick Width",    0.5, 5.0, 1.0, 0.1)
 
-    # ── 12. Theme & layout ──
     st.divider()
     st.subheader("🎨  Theme & Layout")
     bg_st  = st.radio("Theme", ["Light", "Dark"], horizontal=True)
@@ -1053,7 +1025,6 @@ with st.sidebar:
 active_keys = [rk for rk, on in toggle_states.items() if on]
 df_active = df[df["RowKey"].isin(active_keys)].copy()
 
-# ─── Data table ──────────────────────────────────────────────
 with st.expander(f"📊  View Raw Data  ({len(df)} unique concepts)",
                  expanded=False):
     view_df = df[["Material", "Domain", "Time_1", "Time_2", "Growth_Str"]].copy()
@@ -1130,7 +1101,11 @@ if web_legend and fig is not None:
         theme=bg_st.lower()
     )
     if web_legend_html:
-        st.markdown(web_legend_html, unsafe_allow_html=True)
+        try:
+            st.html(web_legend_html)   # Streamlit >= 1.33 — bypasses Markdown
+        except AttributeError:
+            # Fallback for older Streamlit — but clean leading whitespace
+            st.markdown(web_legend_html, unsafe_allow_html=True)
 
 # ─── Export ──────────────────────────────────────────────────
 if fig is not None:
