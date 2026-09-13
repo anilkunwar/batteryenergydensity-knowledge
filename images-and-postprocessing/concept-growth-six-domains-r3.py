@@ -262,7 +262,7 @@ def make_curved_line(x1, y1, x2, y2, curvature=0.0, n_pts=80):
 def generate_web_legend(df_active, custom_colors, mk_over, ln_styles, theme="light"):
     if len(df_active) == 0:
         return ""
-    
+
     bg = "#ffffff" if theme == "light" else "#2b2b3d"
     border = "#e0e0e0" if theme == "light" else "#444466"
     text = "#333333" if theme == "light" else "#e0e0e0"
@@ -363,14 +363,14 @@ def plot_slope_chart(df_active, **kw):
     grid_style= kw.get("grid_style",    "--")
     y_min     = kw.get("y_min",         None)
     y_max     = kw.get("y_max",         None)
-    
+
     # ── LEGEND CONTROLS ──
     show_legend = kw.get("show_legend", True)
     leg_outside = kw.get("legend_outside", True)
     leg_ncol  = kw.get("legend_ncol", 4)
     leg_loc   = kw.get("legend_loc", "best")
     leg_font_size = kw.get("legend_font_size", 10)
-    
+
     sp_w      = kw.get("spine_width",   1.0)
     tk_len    = kw.get("tick_length",   6)
     tk_w      = kw.get("tick_width",    1.0)
@@ -445,10 +445,12 @@ def plot_slope_chart(df_active, **kw):
             ax.plot(xc, yc, color=color, lw=lw + 2,
                     alpha=shad_alpha,       zorder=zo - 1)
 
-        line_label = row["RowKey"]
+        # ── Plot line: use `label=mat` (clean name) and stash RowKey for hover ──
         ax.plot(xc, yc, color=color, lw=lw, alpha=al, zorder=zo,
                 linestyle=ls, solid_capstyle="round",
-                dash_capstyle="round", label=line_label)
+                dash_capstyle="round", label=mat)
+        # Attach RowKey to the artist for mplcursors hover tooltip
+        ax.lines[-1]._rowkey = row["RowKey"]
 
         ax.plot(xc[0],  yc[0],  marker=marker, ms=ms, color=color,
                 zorder=zo + 1, markeredgecolor=edge_c, markeredgewidth=1.5)
@@ -584,7 +586,9 @@ def plot_slope_chart(df_active, **kw):
         cbar.outline.set_edgecolor(sp_c)
         cbar.outline.set_linewidth(0.8)
 
-    # ─── MATPLOTLIB LEGEND GENERATION (Fallback) ─────────────
+    # ═══════════════════════════════════════════════════════════
+    #  LEGEND GENERATION — fixed to avoid clipping below the plot
+    # ═══════════════════════════════════════════════════════════
     if show_legend and n > 0:
         legend_handles = []
         for idx, row in df_active.iterrows():
@@ -592,42 +596,76 @@ def plot_slope_chart(df_active, **kw):
             color  = col_for(mat, row["Growth"])
             marker = mk_over.get(mat, MARKER_STYLE.get(mat, "o"))
             ls     = ln_styles.get(mat, "-")
-            
-            # FIX: Removed the text symbol prefix to avoid double symbols
-            lbl = f"{mat}"
-            
-            handle = mlines.Line2D([], [], color=color, marker=marker,
-                                   linestyle=ls, markersize=8,
-                                   markeredgecolor=edge_c, markeredgewidth=1.5,
-                                   label=lbl)
+            star   = bool(row["Highlight"]) and hi_star
+
+            # Match the on-plot marker/line scale
+            handle_ms = 8 * (1.4 if star else 1.0)
+            handle_lw = line_w * (1.8 if star else 1.0)
+
+            handle = mlines.Line2D(
+                [], [], color=color, marker=marker,
+                linestyle=ls,
+                linewidth=handle_lw,
+                markersize=handle_ms,
+                markeredgecolor=edge_c, markeredgewidth=1.5,
+                label=mat,
+            )
             legend_handles.append(handle)
 
-        if leg_outside:
-            leg = ax.legend(handles=legend_handles, 
-                            loc='upper center', 
-                            bbox_to_anchor=(0.5, -0.12), 
-                            ncol=leg_ncol,
-                            fontsize=leg_font_size,
-                            frameon=True, fancybox=True, shadow=True,
-                            edgecolor=sp_c,
-                            facecolor=("#FFFFFF" if bg_st == "Light" else "#2B2B3D"),
-                            labelcolor=txt_c, borderpad=0.8,
-                            handletextpad=0.6,
-                            columnspacing=1.0)
-        else:
-            leg = ax.legend(handles=legend_handles, loc=leg_loc, 
-                            fontsize=leg_font_size,
-                            frameon=True, fancybox=True, shadow=True,
-                            edgecolor=sp_c,
-                            facecolor=("#FFFFFF" if bg_st == "Light" else "#2B2B3D"),
-                            labelcolor=txt_c, borderpad=0.8,
-                            handletextpad=0.6)
-        leg.get_frame().set_linewidth(1.2)
+        # Cap the number of columns to the number of handles
+        eff_ncol = max(1, min(int(leg_ncol), len(legend_handles)))
 
+        if leg_outside:
+            # ── Figure-level legend, figure-fraction coordinates ──
+            n_rows = int(np.ceil(len(legend_handles) / eff_ncol))
+            # Row height in inches (empirical — matches matplotlib's font metrics)
+            row_h_in = leg_font_size / 72.0 * 1.6
+            legend_h_in = n_rows * row_h_in + 0.55  # + padding/frame
+            # Reserve at least 4% extra, cap at 45% of the figure
+            bottom_frac = min(0.45, legend_h_in / fh_val + 0.04)
+
+            leg = fig.legend(
+                handles=legend_handles,
+                loc='lower center',
+                bbox_to_anchor=(0.5, 0.02),      # figure-fraction!
+                ncol=eff_ncol,
+                fontsize=leg_font_size,
+                frameon=True, fancybox=True, shadow=True,
+                edgecolor=sp_c,
+                facecolor=("#FFFFFF" if bg_st == "Light" else "#2B2B3D"),
+                labelcolor=txt_c,
+                borderpad=0.8, handletextpad=0.6, columnspacing=1.2,
+            )
+            leg.get_frame().set_linewidth(1.2)
+
+            # Reserve the bottom strip we just measured
+            fig.subplots_adjust(
+                bottom=bottom_frac,
+                top=0.92,
+                left=0.08,
+                right=0.94,
+            )
+        else:
+            # ── In-axes legend (inside the plot) ──
+            leg = ax.legend(
+                handles=legend_handles, loc=leg_loc,
+                fontsize=leg_font_size,
+                frameon=True, fancybox=True, shadow=True,
+                edgecolor=sp_c,
+                facecolor=("#FFFFFF" if bg_st == "Light" else "#2B2B3D"),
+                labelcolor=txt_c, borderpad=0.8, handletextpad=0.6,
+            )
+            leg.get_frame().set_linewidth(1.2)
+            fig.tight_layout()
+    else:
+        fig.tight_layout()
+
+    # ─── Watermark ───────────────────────────────────────────
     if watermark:
         fig.text(0.99, 0.01, watermark, fontsize=8, color=txt_c,
                  alpha=0.3, ha="right", va="bottom", style="italic")
 
+    # ─── Axes box / spines ──────────────────────────────────
     ls_map = {"solid": "-", "dashed": "--",
               "dotted": ":", "dashdot": "-."}
     bls = ls_map.get(box_ls, "-")
@@ -662,12 +700,7 @@ def plot_slope_chart(df_active, **kw):
         for sp_name in ("top", "right"):
             ax.spines[sp_name].set_visible(False)
 
-    # ─── ADJUST LAYOUT FOR OUTSIDE LEGEND ─────────────────────
-    if leg_outside and show_legend and n > 0:
-        fig.tight_layout(rect=[0, 0.22, 1, 1])
-    else:
-        fig.tight_layout()
-
+    # ─── Hover tooltips (uses clean label, RowKey stashed on artist) ───
     if show_hover and HAVE_MPLCURSORS:
         cursor = mplcursors.cursor(ax.lines, hover=True)
         cursor.connect("add", lambda sel: sel.annotation.set_text(
@@ -737,7 +770,7 @@ with st.sidebar:
             rk   = row["RowKey"]
             mat  = row["Material"]
             sym  = row["Symbol"]
-            default = (i < 5) 
+            default = (i < 5)
             with cols[i % n_cols]:
                 cur = st.session_state.get(f"tog_{rk}", default)
                 toggle_states[rk] = st.toggle(
@@ -877,7 +910,7 @@ with st.sidebar:
     # ── 8. Annotation callout ──
     with st.expander("📌  Annotation Callout", expanded=False):
         a_opts  = [None] + list(df["RowKey"])
-        default_idx = 0 
+        default_idx = 0
         ann_rowkey = st.selectbox(
             "Annotate Concept", a_opts,
             format_func=lambda x: (
@@ -957,15 +990,15 @@ with st.sidebar:
             with c2:
                 y_max = st.number_input("Y-max", value=500,
                                         step=10, key="ymax")
-        
+
         st.markdown("**Legend Settings**")
         web_legend = st.checkbox("Render Legend as Web Content (Below Plot)", True)
         show_legend = st.checkbox("Show Matplotlib Legend (Inside/Outside)", not web_legend)
-        
+
         if show_legend:
             leg_outside = st.checkbox("Place Legend Below Plot (Outside)", True)
             leg_font_size = st.slider("Legend Font Size", 6, 24, 10, 1)
-            
+
             if leg_outside:
                 leg_ncol = st.slider("Legend Columns", 1, 6, 4, 1)
                 leg_loc = "best"
@@ -981,7 +1014,7 @@ with st.sidebar:
             leg_ncol = 1
             leg_loc = "best"
             leg_font_size = 10
-            
+
         st.markdown("**Spines & Ticks**")
         sp_w   = st.slider("Spine Width",  0.5, 5.0, 1.0, 0.1)
         tk_len = st.slider("Tick Length",   2, 20, 6, 1)
@@ -1079,7 +1112,7 @@ fig = plot_slope_chart(
 # ─── RENDER WEB LEGEND (If enabled) ──────────────────────────
 if web_legend and fig is not None:
     web_legend_html = generate_web_legend(
-        df_active, custom_colors, mk_over_dict, ln_styles_dict, 
+        df_active, custom_colors, mk_over_dict, ln_styles_dict,
         theme=bg_st.lower()
     )
     if web_legend_html:
