@@ -259,7 +259,7 @@ def make_curved_line(x1, y1, x2, y2, curvature=0.0, n_pts=80):
 # ═══════════════════════════════════════════════════════════════
 #  WEB LEGEND RENDERER (HTML/CSS)
 # ═══════════════════════════════════════════════════════════════
-def generate_web_legend(df_active, custom_colors, mk_over, ln_styles, theme="light", web_font_size=14):
+def generate_web_legend(df_active, theme="light", web_font_size=14):
     if len(df_active) == 0:
         return ""
 
@@ -269,44 +269,22 @@ def generate_web_legend(df_active, custom_colors, mk_over, ln_styles, theme="lig
 
     # Comprehensive matplotlib marker to Unicode mapping
     MK_TO_UNICODE = {
-        "o": "●",      # circle
-        "s": "■",      # square
-        "D": "◆",      # diamond
-        "d": "◇",      # thin diamond
-        "^": "▲",      # triangle up
-        "v": "▼",      # triangle down
-        ">": "▶",      # triangle right
-        "<": "◀",      # triangle left
-        "*": "✦",      # star
-        "X": "✕",      # x
-        "x": "×",      # xsmall
-        "p": "⬟",      # pentagon
-        "P": "⬢",      # plus pentagon
-        "h": "⬡",      # hexagon
-        "H": "⬢",      # hexagon2
-        "8": "✴",      # 8-pointed star
-        "+": "+",      # plus
-        ",": ",",      # pixel
-        ".": ".",      # point
-        "1": "1",      # tri_down
-        "2": "2",      # tri_up
-        "3": "3",      # tri_left
-        "4": "4",      # tri_right
-        "|": "|",      # vline
-        "_": "_",      # hline
-        "None": "",    # nothing
-        " ": " ",      # nothing
+        "o": "●", "s": "■", "D": "◆", "d": "◇", "^": "▲", "v": "▼",
+        ">": "▶", "<": "◀", "*": "✦", "X": "✕", "x": "×", "p": "⬟",
+        "P": "⬢", "h": "⬡", "H": "⬢", "8": "✴", "+": "+", ",": ",",
+        ".": ".", "1": "1", "2": "2", "3": "3", "4": "4", "|": "|",
+        "_": "_", "None": "", " ": " ", "": ""
     }
 
     items_html = ""
     for _, row in df_active.iterrows():
         mat = row["Material"]
-        color = custom_colors.get(mat, "#333333")
-        # Get the matplotlib marker being used
-        mpl_marker = mk_over.get(mat, MARKER_STYLE.get(mat, "o"))
-        # Convert to Unicode for web display
-        marker = MK_TO_UNICODE.get(str(mpl_marker), "●")
-        ls = ln_styles.get(mat, "-")
+        # READ DIRECTLY FROM PRE-RESOLVED COLUMNS FOR 100% MATCH
+        mpl_marker = str(row.get("Resolved_Marker", "o"))
+        color = row.get("Resolved_Color", "#333333")
+        ls = row.get("Resolved_LineStyle", "-")
+        
+        marker = MK_TO_UNICODE.get(mpl_marker, "●")
         css_ls = {"-": "solid", "--": "dashed", "-.": "dashdot", ":": "dotted"}.get(ls, "solid")
 
         items_html += (
@@ -358,10 +336,6 @@ def plot_slope_chart(df_active, **kw):
     cmap_name    = kw.get("cmap_name",     "viridis")
     show_cbar    = kw.get("show_colorbar", True)
     cmap_reverse = kw.get("cmap_reverse",  False)
-
-    cust_col = kw.get("custom_colors",    DEFAULT_PALETTE)
-    ln_styles= kw.get("line_styles",      {})
-    mk_over  = kw.get("marker_overrides", MARKER_STYLE)
 
     tri_bg  = kw.get("three_color_bg",        False)
     bg1     = kw.get("bg_color1",             "#FFE5B4")
@@ -454,17 +428,19 @@ def plot_slope_chart(df_active, **kw):
             vmax = vmin + 1
         norm_obj = mcolors.Normalize(vmin=vmin, vmax=vmax)
 
-    def col_for(mat, growth):
-        if use_cmap and cmap_obj and norm_obj:
-            return cmap_obj(norm_obj(growth))
-        return cust_col.get(mat, DEFAULT_PALETTE.get(mat, "#333333"))
-
     for idx, row in df_active.iterrows():
         mat   = row["Material"]
         yv    = [row["Time_1"], row["Time_2"]]
-        color = col_for(mat, row["Growth"])
-        marker= mk_over.get(mat, MARKER_STYLE.get(mat, "o"))
-        ls    = ln_styles.get(mat, "-")
+        
+        # USE PRE-RESOLVED STYLES FROM DATAFRAME FOR 100% CONSISTENCY
+        marker = row.get("Resolved_Marker", "o")
+        ls = row.get("Resolved_LineStyle", "-")
+        
+        if use_cmap and cmap_obj and norm_obj:
+            color = cmap_obj(norm_obj(row["Growth"]))
+        else:
+            color = row.get("Resolved_Color", "#333333")
+            
         star  = bool(row["Highlight"]) and hi_star
 
         lw = line_w * (1.8 if star else 1.0)
@@ -546,7 +522,7 @@ def plot_slope_chart(df_active, **kw):
         y_min_lim, y_max_lim = ax.get_ylim()
         y_range = max(1.0, y_max_lim - y_min_lim)
         oy2 = y_range * ann_offset
-        ac  = col_for(sr["Material"], sr["Growth"])
+        ac  = sr.get("Resolved_Color", "#333333")
 
         prefix  = ann_symbol if ann_symbol else ""
         ann_txt = f"{prefix}  {sr['Growth_Str']}" if prefix else sr['Growth_Str']
@@ -630,9 +606,10 @@ def plot_slope_chart(df_active, **kw):
         legend_handles = []
         for idx, row in df_active.iterrows():
             mat    = row["Material"]
-            color  = col_for(mat, row["Growth"])
-            marker = mk_over.get(mat, MARKER_STYLE.get(mat, "o"))
-            ls     = ln_styles.get(mat, "-")
+            # USE PRE-RESOLVED STYLES FROM DATAFRAME
+            color  = row.get("Resolved_Color", "#333333")
+            marker = row.get("Resolved_Marker", "o")
+            ls     = row.get("Resolved_LineStyle", "-")
             star   = bool(row["Highlight"]) and hi_star
 
             handle_ms = 8 * (1.4 if star else 1.0)
@@ -1087,6 +1064,17 @@ with st.sidebar:
 active_keys = [rk for rk, on in toggle_states.items() if on]
 df_active = df[df["RowKey"].isin(active_keys)].copy()
 
+# PRE-RESOLVE STYLES TO GUARANTEE 100% MATCH BETWEEN PLOT AND WEB LEGEND
+df_active["Resolved_Marker"] = df_active["Material"].apply(
+    lambda m: mk_over_dict.get(m, MARKER_STYLE.get(m, "o"))
+)
+df_active["Resolved_Color"] = df_active["Material"].apply(
+    lambda m: custom_colors.get(m, DEFAULT_PALETTE.get(m, "#333333"))
+)
+df_active["Resolved_LineStyle"] = df_active["Material"].apply(
+    lambda m: ln_styles_dict.get(m, "-")
+)
+
 with st.expander(f"📊  View Raw Data  ({len(df)} unique concepts)",
                  expanded=False):
     view_df = df[["Material", "Domain", "Time_1", "Time_2", "Growth_Str"]].copy()
@@ -1126,8 +1114,6 @@ fig = plot_slope_chart(
     line_alpha=line_alph,         show_arrow=show_arrow,
     use_cmap=use_cmap,            cmap_name=cmap_name,
     show_colorbar=show_cbar,      cmap_reverse=cmap_reverse,
-    custom_colors=custom_colors,  line_styles=ln_styles_dict,
-    marker_overrides=mk_over_dict,
     three_color_bg=tri_bg,        bg_color1=bg1,
     bg_color2=bg2,                bg_color3=bg3,
     bg_gradient_alpha=bg_alpha,   bg_gradient_direction=bg_dir,
@@ -1160,12 +1146,8 @@ fig = plot_slope_chart(
 
 # ─── RENDER WEB LEGEND (If enabled) ──────────────────────────
 if web_legend and fig is not None:
-    # Debug: Print marker assignments
-    st.write("Marker assignments:", {mat: mk_over_dict.get(mat) for mat in df_active["Material"]})
-    
     web_legend_html = generate_web_legend(
-        df_active, custom_colors, mk_over_dict, ln_styles_dict,
-        theme=bg_st.lower(), web_font_size=web_font_size
+        df_active, theme=bg_st.lower(), web_font_size=web_font_size
     )
     if web_legend_html:
         try:
@@ -1202,4 +1184,3 @@ st.caption(
     f"All-zero concepts excluded  ·  "
     f"Available colormaps: **{len(ALL_CMAPS)}**  ·  "
     "Built with Streamlit & Matplotlib")
-
