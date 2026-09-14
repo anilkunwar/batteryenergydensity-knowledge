@@ -267,7 +267,6 @@ def generate_web_legend(df_active, theme="light", web_font_size=14):
     border = "#e0e0e0" if theme == "light" else "#444466"
     text = "#333333" if theme == "light" else "#e0e0e0"
 
-    # Comprehensive matplotlib marker to Unicode mapping
     MK_TO_UNICODE = {
         "o": "●", "s": "■", "D": "◆", "d": "◇", "^": "▲", "v": "▼",
         ">": "▶", "<": "◀", "*": "✦", "X": "✕", "x": "×", "p": "⬟",
@@ -279,7 +278,6 @@ def generate_web_legend(df_active, theme="light", web_font_size=14):
     items_html = ""
     for _, row in df_active.iterrows():
         mat = row["Material"]
-        # READ DIRECTLY FROM PRE-RESOLVED COLUMNS FOR 100% MATCH
         mpl_marker = str(row.get("Resolved_Marker", "o"))
         color = row.get("Resolved_Color", "#333333")
         ls = row.get("Resolved_LineStyle", "-")
@@ -373,11 +371,10 @@ def plot_slope_chart(df_active, **kw):
     
     xtick_left = kw.get("xtick_left",   "Early Period")
     xtick_right= kw.get("xtick_right",  "Recent Period")
-    xlabel_pad = kw.get("xlabel_pad",   10)
-    ylabel_pad = kw.get("ylabel_pad",   10)
+    xlabel_pad = kw.get("xlabel_pad",   25)  # Increased default padding
+    ylabel_pad = kw.get("ylabel_pad",   15)  # Increased default padding
     tick_pad   = kw.get("tick_pad",     5)
 
-    # ── LEGEND CONTROLS ──
     show_legend = kw.get("show_legend", True)
     leg_outside = kw.get("legend_outside", True)
     leg_ncol  = kw.get("legend_ncol", 4)
@@ -432,7 +429,6 @@ def plot_slope_chart(df_active, **kw):
         mat   = row["Material"]
         yv    = [row["Time_1"], row["Time_2"]]
         
-        # USE PRE-RESOLVED STYLES FROM DATAFRAME FOR 100% CONSISTENCY
         marker = row.get("Resolved_Marker", "o")
         ls = row.get("Resolved_LineStyle", "-")
         
@@ -513,7 +509,6 @@ def plot_slope_chart(df_active, **kw):
     if y_min is not None and y_max is not None and y_max > y_min:
         ax.set_ylim(y_min, y_max)
 
-    # ─── ANNOTATION ──────────────────────────────────────────
     if ann_rowkey and ann_rowkey in df_active["RowKey"].values:
         sr  = df_active[df_active["RowKey"] == ann_rowkey].iloc[0]
         mx  = 1.5
@@ -599,14 +594,10 @@ def plot_slope_chart(df_active, **kw):
         cbar.outline.set_edgecolor(sp_c)
         cbar.outline.set_linewidth(0.8)
 
-    # ═══════════════════════════════════════════════════════════
-    #  LEGEND GENERATION — figure-level, dynamic bottom margin
-    # ═══════════════════════════════════════════════════════════
     if show_legend and n > 0:
         legend_handles = []
         for idx, row in df_active.iterrows():
             mat    = row["Material"]
-            # USE PRE-RESOLVED STYLES FROM DATAFRAME
             color  = row.get("Resolved_Color", "#333333")
             marker = row.get("Resolved_Marker", "o")
             ls     = row.get("Resolved_LineStyle", "-")
@@ -631,12 +622,14 @@ def plot_slope_chart(df_active, **kw):
             n_rows = int(np.ceil(len(legend_handles) / eff_ncol))
             row_h_in = leg_font_size / 72.0 * 1.6
             legend_h_in = n_rows * row_h_in + 0.55
-            bottom_frac = min(0.45, legend_h_in / fh_val + 0.04)
+            # Increased bottom padding from 0.04 to 0.15 to prevent overlap
+            bottom_frac = min(0.45, legend_h_in / fh_val + 0.15)
 
             leg = fig.legend(
                 handles=legend_handles,
                 loc='lower center',
-                bbox_to_anchor=(0.5, 0.02),
+                # Moved legend lower from 0.02 to -0.12
+                bbox_to_anchor=(0.5, -0.12),
                 ncol=eff_ncol,
                 fontsize=leg_font_size,
                 frameon=True, fancybox=True, shadow=True,
@@ -667,12 +660,10 @@ def plot_slope_chart(df_active, **kw):
     else:
         fig.tight_layout()
 
-    # ─── Watermark ───────────────────────────────────────────
     if watermark:
         fig.text(0.99, 0.01, watermark, fontsize=8, color=txt_c,
                  alpha=0.3, ha="right", va="bottom", style="italic")
 
-    # ─── Axes box / spines ──────────────────────────────────
     ls_map = {"solid": "-", "dashed": "--",
               "dotted": ":", "dashdot": "-."}
     bls = ls_map.get(box_ls, "-")
@@ -707,7 +698,6 @@ def plot_slope_chart(df_active, **kw):
         for sp_name in ("top", "right"):
             ax.spines[sp_name].set_visible(False)
 
-    # ─── Hover tooltips ──────────────────────────────────────
     if show_hover and HAVE_MPLCURSORS:
         cursor = mplcursors.cursor(ax.lines, hover=True)
         cursor.connect("add", lambda sel: sel.annotation.set_text(
@@ -741,7 +731,6 @@ Highest growth: <b>{HIGHLIGHT_CONCEPT}</b>
 
 st.caption("ℹ️  " + _load_msg)
 
-# ─── Sidebar ─────────────────────────────────────────────────
 with st.sidebar:
     st.header("🎛️  Controls")
 
@@ -1004,9 +993,11 @@ with st.sidebar:
         st.markdown("**Labels & Padding**")
         c_pad1, c_pad2, c_pad3 = st.columns(3)
         with c_pad1:
-            xlabel_pad = st.slider("X-Axis Label Padding", 0, 50, 10, 1)
+            # Increased default from 10 to 25 to prevent overlap
+            xlabel_pad = st.slider("X-Axis Label Padding", 0, 50, 25, 1)
         with c_pad2:
-            ylabel_pad = st.slider("Y-Axis Label Padding", 0, 50, 10, 1)
+            # Increased default from 10 to 15
+            ylabel_pad = st.slider("Y-Axis Label Padding", 0, 50, 15, 1)
         with c_pad3:
             tick_pad = st.slider("Tick Label Padding", 0, 30, 5, 1)
 
@@ -1060,7 +1051,6 @@ with st.sidebar:
     show_hover = st.checkbox("Hover Tooltips", True,
                               disabled=not HAVE_MPLCURSORS)
 
-# ─── Active data ─────────────────────────────────────────────
 active_keys = [rk for rk, on in toggle_states.items() if on]
 df_active = df[df["RowKey"].isin(active_keys)].copy()
 
@@ -1103,7 +1093,6 @@ with st.expander(f"📊  View Raw Data  ({len(df)} unique concepts)",
         f"Highest growth: {HIGHLIGHT_CONCEPT} "
         f"({df.iloc[0]['Growth_Str']}).")
 
-# ─── Plot ────────────────────────────────────────────────────
 fig = plot_slope_chart(
     df_active,
     show_left_labels=show_left,   show_right_labels=show_right,
@@ -1144,19 +1133,16 @@ fig = plot_slope_chart(
     tick_pad=tick_pad
 )
 
-# ─── RENDER WEB LEGEND (If enabled) ──────────────────────────
 if web_legend and fig is not None:
     web_legend_html = generate_web_legend(
         df_active, theme=bg_st.lower(), web_font_size=web_font_size
     )
     if web_legend_html:
         try:
-            st.html(web_legend_html)   # Streamlit >= 1.33 — bypasses Markdown
+            st.html(web_legend_html)
         except AttributeError:
-            # Fallback for older Streamlit — but clean leading whitespace
             st.markdown(web_legend_html, unsafe_allow_html=True)
 
-# ─── Export ──────────────────────────────────────────────────
 if fig is not None:
     c1, c2, c3 = st.columns(3)
     for col, fmt, ext, mime in [
@@ -1174,7 +1160,6 @@ if fig is not None:
                 file_name=f"concept_growth_slope_chart.{ext}",
                 mime=mime, use_container_width=True)
 
-# ─── Footer ──────────────────────────────────────────────────
 st.markdown("---")
 st.caption(
     f"Concept Growth Slope Chart  ·  "
