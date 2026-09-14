@@ -74,3 +74,6 @@
 [![meaningtowords](https://img.shields.io/badge/sixdomainscg-v6.0-yellow)](https://concept-growth-six-domains6.streamlit.app/) (v5 with the customization function for axes feature labels, Advanced Visuals, Colors and Customization 2, Concept Growth Rate for six queries, for the domain "Performance Metrics", the corresponding datasets are from the query Q1PM1.)
 
 [![meaningtowords](https://img.shields.io/badge/sixdomainscg-v7.0-yellow)](https://concept-growth-six-domains7.streamlit.app/) (the web legend is set to match with legend labels of image's matplotlib based legend,  v5 with the customization function for axes feature labels, Advanced Visuals, Colors and Customization 2, Concept Growth Rate for six queries, for the domain "Performance Metrics", the corresponding datasets are from the query Q1PM1.)
+
+[![meaningtowords](https://img.shields.io/badge/sixdomainscg-v8.0-yellow)](https://concept-growth-six-domains8.streamlit.app/) (the web legend is set to match with legend labels of image's matplotlib based legend,  v5 with the customization function for axes feature labels, Advanced Visuals, Colors and Customization 2, Concept Growth Rate for six queries, for the domain "Performance Metrics", the corresponding datasets are from the query Q1PM1.)
+
